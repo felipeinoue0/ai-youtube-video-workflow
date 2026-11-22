@@ -346,6 +346,24 @@ def test_export_kdenlive_writes_the_timeline_as_an_mlt_project(tmp_path: Path) -
     assert services == {"wipe-left": "luma", "dissolve": "luma", "wipe-right": "luma"}
     # the first cut brings clip 2 in on V2; the second brings clip 3 in on V1, so it runs backwards
     assert [prop(t, "reverse") for t in user[:2]] == ["0", "1"]
+    # each wipe uses a luma map written next to the project — never a file inside MLT or Kdenlive,
+    # which Kdenlive reports as a missing clip; run backwards, it uses the opposite direction's map
+    opposite = {"wipe-left": "wipe-right", "wipe-right": "wipe-left"}
+    wipes = [t for t in user if prop(t, "kdenlive_id") == "wipe"]
+    assert wipes
+    for wipe in wipes:
+        kind = prop(wipe, "kdenlive:transition_type")
+        expected = kind if prop(wipe, "reverse") == "0" else opposite[kind]
+        assert prop(wipe, "resource") == f"lumas/{expected}.pgm"
+    left = (project.parent / "lumas" / "wipe-left.pgm").read_bytes()
+    header = b"P5\n640 360\n65535\n"
+    assert left.startswith(header)
+    row = left[len(header) : len(header) + 640 * 2]
+    # wipe-left reveals from the right edge: the darkest values (first to change) on the right
+    assert int.from_bytes(row[:2], "big") == 65535 and int.from_bytes(row[-2:], "big") == 0
+    assert len(left) == len(header) + 640 * 360 * 2
+    resources = [prop(t, "resource") or "" for t in root.iter("transition")]
+    assert not any(r.startswith("%") for r in resources)
 
     # narration on A1 at its start; subtitles from the timeline's ASS file
     a1 = track_positions(root.find("playlist[@id='playlist_a1']"))
