@@ -142,11 +142,16 @@ def test_status_walks_the_creator_through_the_steps(tmp_path: Path) -> None:
     out = ok(tmp_path, "status", "c", "v")
     assert "v1 (no script.json yet)" in out and "ytflow script build" in next_line(out)
     (script / "script.json").write_text("{}")
-    (Path(ok(tmp_path, "version", "new", str(video / "prompts"))) / "prompts.md").write_text("x")
+    prompts = Path(ok(tmp_path, "version", "new", str(video / "prompts")))
+    (prompts / "prompts.md").write_text("x")
+    assert "ytflow prompts build" in next_line(ok(tmp_path, "status", "c", "v"))
+    (prompts / "prompts.json").write_text('{"prompts": [{"name": "001_dawn"}, {"name": "002_dusk"}]}')
     out = ok(tmp_path, "status", "c", "v")
-    assert "Google Flow" in next_line(out) and "images     empty" in out
+    assert "Google Flow" in next_line(out) and "images     0/2 images" in out
 
     (video / "images" / "001_dawn.png").write_bytes(b"")
+    assert "images     1/2 images" in ok(tmp_path, "status", "c", "v")
+    (video / "images" / "002_dusk.jpg").write_bytes(b"")
     assert next_line(ok(tmp_path, "status", "c", "v")) == "next: fill voice.md in kit v1 (skill: voiceover)"
     fill(kit, "voice.md")
     assert "skill: voiceover" in next_line(ok(tmp_path, "status", "c", "v"))

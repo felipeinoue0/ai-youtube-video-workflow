@@ -10,8 +10,19 @@ from pathlib import Path
 
 from ytflow import __version__
 from ytflow.branding import check_branding
+from ytflow.images import apply_plan, import_plan
+from ytflow.images import check as check_images
+from ytflow.images import suggestion as image_suggestion
 from ytflow.kit import KitError, check_kit, front_matter
 from ytflow.media import MediaError
+from ytflow.prompts import COMPILED as PROMPTS_COMPILED
+from ytflow.prompts import SOURCE as PROMPTS_SOURCE
+from ytflow.prompts import TEXT as PROMPTS_TEXT
+from ytflow.prompts import build as build_prompts
+from ytflow.prompts import init_text as prompts_init_text
+from ytflow.prompts import parse as parse_prompts
+from ytflow.prompts import write as write_prompts
+from ytflow.prompts import written_scenes
 from ytflow.references import as_dict, measure, recommend, reference_files
 from ytflow.script import COMPILED as SCRIPT_COMPILED
 from ytflow.script import SOURCE as SCRIPT_SOURCE
@@ -102,6 +113,30 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("video")
     p.add_argument("--version", dest="step_version", help="script version, e.g. v2 (default: latest)")
     p.set_defaults(func=cmd_script_build)
+
+    prompts = sub.add_parser("prompts", help="image-prompt step").add_subparsers(dest="action", required=True)
+    p = prompts.add_parser("init", help="start a prompts version with one scene per phrase of the script")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.add_argument("--script", dest="script_version", help="script version (default: latest)")
+    p.set_defaults(func=cmd_prompts_init)
+    p = prompts.add_parser("build", help="compose scenes with the kit's anchor into prompts.txt and prompts.json")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.add_argument("--version", dest="step_version", help="prompts version (default: latest)")
+    p.set_defaults(func=cmd_prompts_build)
+
+    images = sub.add_parser("images", help="images from Google Flow").add_subparsers(dest="action", required=True)
+    p = images.add_parser("check", help="match images/ against the prompt names: missing, extra, aspect ratio")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.set_defaults(func=cmd_images_check)
+    p = images.add_parser("import", help="copy downloads (oldest first) to the missing image names")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.add_argument("--from", dest="source", type=Path, required=True, help="folder with the downloaded images")
+    p.add_argument("--apply", action="store_true", help="copy the files (default: only show the plan)")
+    p.set_defaults(func=cmd_images_import)
 
     p = sub.add_parser("status", help="show where a channel or video is and what to do next")
     p.add_argument("channel")
@@ -266,6 +301,120 @@ def cmd_script_build(args: argparse.Namespace) -> int:
     for warning in youtube_chapter_warnings(script):
         print(f"warning: {warning}")
     print(f"script {version.name}: ok — wrote {version / SCRIPT_COMPILED}")
+    return 0
+
+
+def ready_kit_file(ws: Workspace, channel: str, video: str, name: str) -> tuple[Path, dict]:
+    """The video's kit and the front matter of one kit file, which must pass the kit check."""
+    kit = ws.video_kit(channel, video)
+    problems = check_kit(kit, (name,))[name]
+    if problems:
+        raise WorkspaceError(
+            f"{name} in kit {kit.name} is not ready ({'; '.join(problems)}) — run: ytflow kit check {channel} {video}"
+        )
+    return kit, front_matter(kit / name)
+
+
+def built_script(ws: Workspace, channel: str, video: str, version: str | None) -> tuple[Path, dict]:
+    directory = version_dir(ws.video(channel, video) / "script", version)
+    path = directory / SCRIPT_COMPILED
+    if not path.is_file():
+        raise WorkspaceError(f"no {SCRIPT_COMPILED} in {directory} — run: ytflow script build {channel} {video}")
+    return directory, json.loads(path.read_text())
+
+
+def built_prompts(ws: Workspace, channel: str, video: str) -> list[str]:
+    directory = version_dir(ws.video(channel, video) / "prompts", None)
+    path = directory / PROMPTS_COMPILED
+    if not path.is_file():
+        raise WorkspaceError(f"no {PROMPTS_COMPILED} in {directory} — run: ytflow prompts build {channel} {video}")
+    return [p["name"] for p in json.loads(path.read_text())["prompts"]]
+
+
+def cmd_prompts_init(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    kit, _ = ready_kit_file(ws, args.channel, args.video, "visual-style.md")
+    script_dir, script = built_script(ws, args.channel, args.video, args.script_version)
+    step_dir = ws.video(args.channel, args.video) / "prompts"
+    previous = latest_version(step_dir)
+    carried = {}
+    if previous is not None and (previous / PROMPTS_SOURCE).is_file():
+        carried = written_scenes((previous / PROMPTS_SOURCE).read_text())
+    text = prompts_init_text(script, script_dir.name, kit.name, carried)
+    reused = sum((p["name"], p["text"]) in carried for p in script["phrases"])
+    target = new_version(step_dir)
+    (target / PROMPTS_SOURCE).write_text(text)
+    print(target / PROMPTS_SOURCE)
+    note = f", {reused} scene(s) carried over from {previous.name}" if reused else ""
+    print(f"{len(script['phrases'])} scene(s) to write from script {script_dir.name}{note}", file=sys.stderr)
+    return 0
+
+
+def cmd_prompts_build(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    kit, visual = ready_kit_file(ws, args.channel, args.video, "visual-style.md")
+    version = version_dir(ws.video(args.channel, args.video) / "prompts", args.step_version)
+    source = version / PROMPTS_SOURCE
+    if not source.is_file():
+        raise WorkspaceError(f"no {PROMPTS_SOURCE} in {version} — run: ytflow prompts init {args.channel} {args.video}")
+    text = source.read_text()
+    script_version, _, _ = parse_prompts(text)
+    script_dir, script = built_script(ws, args.channel, args.video, script_version)
+    prompts, problems = build_prompts(text, script, visual["anchor"], visual.get("avoid", ""))
+    if prompts is None:
+        for problem in problems:
+            print(f"- {problem}")
+        print(f"prompts {version.name}: {len(problems)} problem(s); {PROMPTS_COMPILED} not written")
+        return 1
+    write_prompts(version, prompts, script_dir.name, kit.name)
+    latest_script = latest_version(script_dir.parent)
+    if latest_script is not None and latest_script != script_dir:
+        print(f"warning: made from script {script_dir.name}, but {latest_script.name} exists — run prompts init again")
+    print(f"prompts {version.name}: ok — {len(prompts)} prompts in {version / PROMPTS_TEXT}")
+    return 0
+
+
+def cmd_images_check(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    _, visual = ready_kit_file(ws, args.channel, args.video, "visual-style.md")
+    expected = built_prompts(ws, args.channel, args.video)
+    report = check_images(ws.video(args.channel, args.video) / "images", expected, visual["aspect_ratio"])
+    for name in report.missing:
+        print(f"missing: {name}")
+    for name in report.extra:
+        hint = image_suggestion(name, report.missing)
+        print(f"extra: {name}" + (f" (rename to {hint}{Path(name).suffix}?)" if hint else " (matches no prompt)"))
+    for item in report.duplicates:
+        print(f"duplicate: {item} (keep one)")
+    for item in report.wrong_aspect:
+        print(f"wrong aspect: {item}")
+    for item in report.unreadable:
+        print(f"unreadable: {item}")
+    size = f", smallest {report.smallest[0]}x{report.smallest[1]}" if report.smallest else ""
+    status = "ok" if report.ok else "not ready"
+    print(f"images: {len(report.present)}/{report.expected} present{size} — {status}")
+    return 0 if report.ok else 1
+
+
+def cmd_images_import(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    images_dir = ws.video(args.channel, args.video) / "images"
+    source = args.source.resolve()
+    if not source.is_dir():
+        raise WorkspaceError(f"{args.source} is not a folder")
+    if source == images_dir.resolve():
+        raise WorkspaceError("--from must be the downloads folder, not the video's images/ folder")
+    plan = import_plan(source, images_dir, built_prompts(ws, args.channel, args.video))
+    if not plan:
+        print("nothing to import: no missing images, or no image files in the folder")
+        return 0
+    for src, dest in plan:
+        print(f"{src.name} -> {dest.name}")
+    if args.apply:
+        apply_plan(plan)
+        print(f"copied {len(plan)} file(s) into {images_dir}")
+    else:
+        print(f"{len(plan)} file(s) would be copied, oldest download first — check the pairs, then add --apply")
     return 0
 
 
