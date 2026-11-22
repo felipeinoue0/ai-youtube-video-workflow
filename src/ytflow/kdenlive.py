@@ -6,7 +6,8 @@ than imitating the newest format. The layout:
 
 - **V1 and V2** take the clips in turn (A/B), so each transition is a
   composition over the clips' overlap: ``dissolve`` and ``wipe-*`` are luma
-  compositions, ``slide-*`` a composite with an animated geometry.
+  compositions (each wipe's greyscale map is written to ``lumas/`` next to the
+  project), ``slide-*`` a composite with an animated geometry.
 - Each clip carries a **Transform** (``qtblend``) effect whose ``rect`` moves
   from the camera's start view to its end view: the slow pan or zoom.
 - The first clip fades from black and the last one fades to black (the
@@ -28,12 +29,34 @@ from pathlib import Path
 DOCUMENT_VERSION = "1.04"
 INTERNAL = "237"  # Kdenlive's marker for compositions it manages itself
 
-WIPES = {  # MLT's built-in luma maps: %luma01 is a horizontal bar wipe, %luma02 its vertical twin
-    "wipe-left": ("%luma01.pgm", True),
-    "wipe-right": ("%luma01.pgm", False),
-    "wipe-up": ("%luma02.pgm", True),
-    "wipe-down": ("%luma02.pgm", False),
-}
+LUMA_DIR = "lumas"
+LUMA_SIZE = (640, 360)  # the luma transition scales its map to the frame
+# A luma map is a greyscale picture: the darkest pixels change to the incoming
+# image first. Each wipe gets its own map, written next to the project, so the
+# project depends on no file inside MLT's or Kdenlive's installation.
+WIPES = ("wipe-left", "wipe-right", "wipe-up", "wipe-down")
+OPPOSITE = {"wipe-left": "wipe-right", "wipe-right": "wipe-left", "wipe-up": "wipe-down", "wipe-down": "wipe-up"}
+
+
+def luma_map(kind: str, width: int = LUMA_SIZE[0], height: int = LUMA_SIZE[1]) -> bytes:
+    """A 16-bit PGM gradient for a wipe: wipe-left reveals from the right edge, wipe-up from the bottom."""
+    top = 65535
+
+    def value(x: int, y: int) -> int:
+        fx, fy = x / (width - 1), y / (height - 1)
+        share = {"wipe-left": 1 - fx, "wipe-right": fx, "wipe-up": 1 - fy, "wipe-down": fy}[kind]
+        return round(share * top)
+
+    rows = bytearray()
+    for y in range(height):
+        if kind in ("wipe-left", "wipe-right"):
+            row = b"".join(value(x, 0).to_bytes(2, "big") for x in range(width))
+        else:
+            row = value(0, y).to_bytes(2, "big") * width
+        rows += row
+    return f"P5\n{width} {height}\n{top}\n".encode() + bytes(rows)
+
+
 SLIDE_FROM = {  # where the incoming image starts, as an x y offset in frames of the picture size
     "slide-left": (1, 0),
     "slide-right": (-1, 0),
@@ -82,6 +105,7 @@ class Builder:
         self.root = ET.Element("mlt", LC_NUMERIC="C", producer="main_bin", version="7.0.0")
         self.next_id = 2
         self.bin: list[tuple[str, int]] = []  # (producer id, length)
+        self.lumas: set[str] = set()  # luma map files the compositions use, relative to the project
 
     def fr(self, seconds: float) -> int:
         return frames(seconds, self.fps)
@@ -232,7 +256,12 @@ class Builder:
         element = ET.SubElement(tractor, "transition", attrib={"in": str(start), "out": str(end)})
         common = {"a_track": a, "b_track": b, "kdenlive:transition_type": kind}
         if kind == "dissolve" or kind in WIPES:
-            resource, flip = WIPES.get(kind, ("", False))
+            resource = ""
+            if kind in WIPES:
+                # luma goes from a to b; run backwards (incoming clip on a), the map's order flips
+                # too, so the opposite map keeps the wipe travelling the way its name says
+                resource = f"{LUMA_DIR}/{kind if incoming_on_b else OPPOSITE[kind]}.pgm"
+                self.lumas.add(resource)
             props(
                 element,
                 {
@@ -240,10 +269,8 @@ class Builder:
                     "mlt_service": "luma",
                     "kdenlive_id": "dissolve" if kind == "dissolve" else "wipe",
                     "resource": resource,
-                    "softness": 0 if resource else 0.2,
-                    # luma goes from a to b; when the incoming clip is on a, run it backwards
+                    "softness": 0.05 if resource else 0,
                     "reverse": int(not incoming_on_b),
-                    "invert": int(flip),
                 },
             )
         else:
@@ -374,6 +401,10 @@ def export(timeline: dict, project: Path, video_dir: Path, subtitles: Path) -> P
     """Write the project file; returns its path."""
     builder = Builder(timeline, project.parent, video_dir)
     root = builder.build(os.path.relpath(subtitles, project.parent))
+    for resource in sorted(builder.lumas):
+        path = project.parent / resource
+        path.parent.mkdir(exist_ok=True)
+        path.write_bytes(luma_map(Path(resource).stem))
     ET.indent(root)
     project.write_text('<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding="unicode") + "\n")
     return project
