@@ -41,6 +41,7 @@ class Step:
     skill: str
     action: str
     kind: str = "versioned"  # "versioned" (<step>/v<N>/) or "input" (files the creator adds)
+    kit_file: str | None = None  # the kit file this step reads; it must be filled first
 
 
 CHANNEL_STEPS = (
@@ -48,17 +49,28 @@ CHANNEL_STEPS = (
 )
 
 VIDEO_STEPS = (
-    Step("script", "script", "write the script from the kit's style guide"),
-    Step("prompts", "image-prompts", "write one Google Flow prompt per phrase part"),
+    Step("script", "script", "write the script from the kit's style guide", kit_file="style-guide.md"),
+    Step("prompts", "image-prompts", "write one Google Flow prompt per phrase part", kit_file="visual-style.md"),
     Step(
         "images", "image-prompts", "generate the images in Google Flow and save them under their prompt names", "input"
     ),
-    Step("voiceover", "voiceover", "export the narration text for ElevenLabs"),
+    Step("voiceover", "voiceover", "export the narration text for ElevenLabs", kit_file="voice.md"),
     Step("audio", "voiceover", "generate the narration in ElevenLabs and save it in audio/", "input"),
     Step("timing", "edit", "align the narration audio to the script"),
-    Step("timeline", "edit", "build timeline.json and export the Kdenlive project"),
-    Step("publish", "publish", "write the title, description and tags"),
+    Step("timeline", "edit", "build timeline.json and export the Kdenlive project", kit_file="edit-preset.toml"),
+    Step("publish", "publish", "write the title, description and tags", kit_file="publish.md"),
 )
+
+# Which skill fills each kit file. The channel steps (branding, style) fill theirs before
+# the first video; voice and edit preset are filled during the first video's steps.
+KIT_OWNERS = {
+    "publish.md": "branding",
+    "style-guide.md": "style",
+    "visual-style.md": "style",
+    "voice.md": "voiceover",
+    "edit-preset.toml": "edit",
+}
+CHANNEL_KIT_FILES = ("publish.md", "style-guide.md", "visual-style.md")
 
 KIT_TEMPLATES: dict[str, str] = {
     "style-guide.md": f"""# Style guide
@@ -197,6 +209,36 @@ class Workspace:
     def create_kit_version(self, channel: str) -> Path:
         return new_version(self.channel(channel) / "kit", copy_latest=True)
 
+    def videos_using_kit(self, channel: str, kit: str) -> list[str]:
+        """Videos of a channel pinned to a kit version."""
+        videos_dir = self.channel(channel) / "videos"
+        if not videos_dir.is_dir():
+            return []
+        metas = sorted(p / "video.toml" for p in videos_dir.iterdir() if (p / "video.toml").is_file())
+        return [m.parent.name for m in metas if tomllib.loads(m.read_text()).get("kit") == kit]
+
+    def editable_kit(
+        self, channel: str, video: str | None = None, files: tuple[str, ...] = ()
+    ) -> tuple[Path, list[str]]:
+        """The kit version a skill may write to, and the videos that forced a new one.
+
+        The target is the video's kit, or the channel's latest. It is edited in place
+        while no video uses it, or when every file to write still carries its
+        placeholder: no video can have relied on an unfilled file. Otherwise editing
+        would change what a video was made with, so a new version is started from a
+        copy of the latest kit instead.
+        """
+        for name in files:
+            if name not in KIT_TEMPLATES:
+                raise WorkspaceError(f"unknown kit file {name!r} (kit files: {', '.join(KIT_TEMPLATES)})")
+        target = self.video_kit(channel, video) if video else self.kit_dir(self.channel(channel), None)
+        if files and all(TODO_MARK in (target / name).read_text(errors="replace") for name in files):
+            return target, []
+        users = self.videos_using_kit(channel, target.name)
+        if not users:
+            return target, []
+        return self.create_kit_version(channel), users
+
     def create_video(self, channel: str, video: str, kit: str | None = None) -> Path:
         channel_dir = self.channel(channel)
         path = channel_dir / "videos" / validate_name("video", video)
@@ -261,12 +303,12 @@ def channel_status(ws: Workspace, channel: str) -> tuple[list[str], str | None]:
         lines.append(f"  {step.name:<10} {desc}")
         if not done and next_action is None:
             next_action = f"{step.action} (skill: {step.skill})"
-    kit = latest_version(channel_dir / "kit")
-    todo = kit_todo_files(kit) if kit else []
-    kit_desc = f"{kit.name}" + (f", still TODO: {', '.join(todo)}" if todo else ", complete") if kit else "missing"
-    lines.append(f"  {'kit':<10} {kit_desc}")
-    if todo and next_action is None:
-        next_action = f"fill the channel kit {kit.name}: {', '.join(todo)} (skills: style, voiceover, edit, publish)"
+    kit = ws.kit_dir(channel_dir, None)
+    todo = kit_todo_files(kit)
+    lines.append(f"  {'kit':<10} {kit.name}" + (f", still TODO: {', '.join(todo)}" if todo else ", complete"))
+    for name in CHANNEL_KIT_FILES:
+        if name in todo and next_action is None:
+            next_action = fill_kit_action(kit, name)
     videos_dir = channel_dir / "videos"
     names = sorted(p.name for p in videos_dir.iterdir() if (p / "video.toml").is_file()) if videos_dir.is_dir() else []
     lines.append(f"  {'videos':<10} {', '.join(names) if names else 'none'}")
@@ -275,14 +317,23 @@ def channel_status(ws: Workspace, channel: str) -> tuple[list[str], str | None]:
     return lines, next_action
 
 
+def fill_kit_action(kit: Path, name: str) -> str:
+    return f"fill {name} in kit {kit.name} (skill: {KIT_OWNERS[name]})"
+
+
 def video_status(ws: Workspace, channel: str, video: str) -> tuple[list[str], str | None]:
     """Report lines and the next action for a video, or None when every step is done."""
     video_dir = ws.video(channel, video)
-    lines = [f"video {channel}/{video} (kit {ws.video_kit(channel, video).name})"]
+    kit = ws.video_kit(channel, video)
+    todo = kit_todo_files(kit)
+    lines = [f"video {channel}/{video} (kit {kit.name})"]
     next_action: str | None = None
     for step in VIDEO_STEPS:
         done, desc = step_state(video_dir, step)
         lines.append(f"  {step.name:<10} {desc}")
         if not done and next_action is None:
-            next_action = f"{step.action} (skill: {step.skill})"
+            if step.kit_file in todo:
+                next_action = fill_kit_action(kit, step.kit_file)
+            else:
+                next_action = f"{step.action} (skill: {step.skill})"
     return lines, next_action

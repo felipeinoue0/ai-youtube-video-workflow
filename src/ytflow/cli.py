@@ -8,7 +8,17 @@ import sys
 from pathlib import Path
 
 from ytflow import __version__
-from ytflow.workspace import Workspace, WorkspaceError, channel_status, latest_version, new_version, video_status
+from ytflow.branding import check_branding
+from ytflow.media import MediaError
+from ytflow.workspace import (
+    VERSION_RE,
+    Workspace,
+    WorkspaceError,
+    channel_status,
+    latest_version,
+    new_version,
+    video_status,
+)
 
 ROOT_ENV = "YTFLOW_ROOT"
 
@@ -35,6 +45,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = kit.add_parser("new", help="start the next kit version from the latest one")
     p.add_argument("channel")
     p.set_defaults(func=cmd_kit_new)
+    p = kit.add_parser("edit", help="print a kit version safe to write to (starts a new one if a video uses it)")
+    p.add_argument("channel")
+    p.add_argument("video", nargs="?", help="edit the kit this video uses instead of the latest")
+    p.add_argument("--file", dest="files", action="append", default=[], help="kit file to write (repeatable)")
+    p.set_defaults(func=cmd_kit_edit)
     p = kit.add_parser("path", help="print the kit directory a video uses (or the channel's latest)")
     p.add_argument("channel")
     p.add_argument("video", nargs="?")
@@ -55,6 +70,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = version.add_parser("latest", help="print the latest version directory of a step")
     p.add_argument("step_dir", type=Path)
     p.set_defaults(func=cmd_version_latest)
+
+    branding = sub.add_parser("branding", help="branding step").add_subparsers(dest="action", required=True)
+    p = branding.add_parser("check", help="check identity.toml, logo and banner against YouTube's limits")
+    p.add_argument("channel")
+    p.add_argument("--version", dest="step_version", help="branding version, e.g. v2 (default: latest)")
+    p.set_defaults(func=cmd_branding_check)
 
     p = sub.add_parser("status", help="show where a channel or video is and what to do next")
     p.add_argument("channel")
@@ -91,6 +112,17 @@ def cmd_kit_new(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_kit_edit(args: argparse.Namespace) -> int:
+    path, users = workspace(args).editable_kit(args.channel, args.video, tuple(args.files))
+    if users:
+        print(
+            f"that kit is used by {', '.join(users)}, which keep it; started kit {path.name} for later videos",
+            file=sys.stderr,
+        )
+    print(path)
+    return 0
+
+
 def cmd_kit_path(args: argparse.Namespace) -> int:
     ws = workspace(args)
     if args.video:
@@ -118,6 +150,23 @@ def cmd_version_latest(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_branding_check(args: argparse.Namespace) -> int:
+    step_dir = workspace(args).channel(args.channel) / "branding"
+    if args.step_version:
+        version_dir = step_dir / args.step_version
+        if not VERSION_RE.match(args.step_version) or not version_dir.is_dir():
+            raise WorkspaceError(f"no branding version {args.step_version!r}")
+    else:
+        version_dir = latest_version(step_dir)
+        if version_dir is None:
+            raise WorkspaceError(f"no branding version yet — run: ytflow version new {step_dir}")
+    problems = check_branding(version_dir)
+    for problem in problems:
+        print(f"- {problem}")
+    print(f"branding {version_dir.name}: " + (f"{len(problems)} problem(s)" if problems else "ok"))
+    return 1 if problems else 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     ws = workspace(args)
     lines, next_action = channel_status(ws, args.channel)
@@ -138,6 +187,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         return args.func(args)
-    except WorkspaceError as err:
+    except (WorkspaceError, MediaError) as err:
         print(f"ytflow: error: {err}", file=sys.stderr)
         return 1

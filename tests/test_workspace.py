@@ -106,8 +106,9 @@ def test_video_new_needs_an_existing_channel(tmp_path: Path) -> None:
     assert result.returncode == 1 and "ytflow channel new nope" in result.stderr
 
 
-def fill_kit(kit: Path) -> None:
-    for p in kit.iterdir():
+def fill(kit: Path, *names: str) -> None:
+    for name in names:
+        p = kit / name
         p.write_text("\n".join(line for line in p.read_text().splitlines() if TODO_MARK not in line))
 
 
@@ -118,15 +119,18 @@ def next_line(output: str) -> str:
 def test_status_walks_the_creator_through_the_steps(tmp_path: Path) -> None:
     ok(tmp_path, "channel", "new", "c")
     channel = tmp_path / "channels" / "c"
+    kit = channel / "kit" / "v1"
     assert "skill: branding" in next_line(ok(tmp_path, "status", "c"))
 
-    (Path(ok(tmp_path, "version", "new", str(channel / "branding"))) / "description.md").write_text("x")
+    (Path(ok(tmp_path, "version", "new", str(channel / "branding"))) / "identity.toml").write_text("x")
     out = ok(tmp_path, "status", "c")
-    assert "still TODO" in out and "fill the channel kit v1" in next_line(out)
-
-    fill_kit(channel / "kit" / "v1")
+    assert "still TODO" in out and next_line(out) == "next: fill publish.md in kit v1 (skill: branding)"
+    fill(kit, "publish.md")
+    assert next_line(ok(tmp_path, "status", "c")) == "next: fill style-guide.md in kit v1 (skill: style)"
+    fill(kit, "style-guide.md", "visual-style.md")
     out = ok(tmp_path, "status", "c")
-    assert "v1, complete" in out and "ytflow video new c" in next_line(out)
+    assert "still TODO: edit-preset.toml, voice.md" in out  # filled during the first video
+    assert "ytflow video new c" in next_line(out)
 
     ok(tmp_path, "video", "new", "c", "v")
     video = channel / "videos" / "v"
@@ -140,12 +144,34 @@ def test_status_walks_the_creator_through_the_steps(tmp_path: Path) -> None:
     assert "Google Flow" in next_line(out) and "images     empty" in out
 
     (video / "images" / "001_dawn.png").write_bytes(b"")
+    assert next_line(ok(tmp_path, "status", "c", "v")) == "next: fill voice.md in kit v1 (skill: voiceover)"
+    fill(kit, "voice.md")
     assert "skill: voiceover" in next_line(ok(tmp_path, "status", "c", "v"))
 
-    for step in ("voiceover", "timing", "timeline", "publish"):
+    for step in ("voiceover", "timing"):
         (Path(ok(tmp_path, "version", "new", str(video / step))) / "out.txt").write_text("x")
     (video / "audio" / "narration.mp3").write_bytes(b"")
+    assert next_line(ok(tmp_path, "status", "c", "v")) == "next: fill edit-preset.toml in kit v1 (skill: edit)"
+    fill(kit, "edit-preset.toml")
+    for step in ("timeline", "publish"):
+        (Path(ok(tmp_path, "version", "new", str(video / step))) / "out.txt").write_text("x")
     assert next_line(ok(tmp_path, "status", "c", "v")).startswith("next: done")
+
+
+def test_kit_edit_fills_placeholders_in_place_but_never_rewrites_a_used_file(tmp_path: Path) -> None:
+    ok(tmp_path, "channel", "new", "c")
+    kits = tmp_path / "channels" / "c" / "kit"
+    ok(tmp_path, "video", "new", "c", "first")
+    # voice.md is still a placeholder: the video in progress fills it in its own kit
+    assert ok(tmp_path, "kit", "edit", "c", "first", "--file", "voice.md") == str(kits / "v1")
+    fill(kits / "v1", "voice.md")
+    # now filled and used by "first": a change goes to a new version, "first" keeps v1
+    result = ytflow(tmp_path, "kit", "edit", "c", "first", "--file", "voice.md")
+    assert result.returncode == 0 and result.stdout.strip() == str(kits / "v2")
+    assert "used by first" in result.stderr
+    assert ok(tmp_path, "kit", "path", "c", "first") == str(kits / "v1")
+    bad = ytflow(tmp_path, "kit", "edit", "c", "--file", "nope.md")
+    assert bad.returncode == 1 and "unknown kit file" in bad.stderr
 
 
 @pytest.mark.parametrize("args", [("status", "c", "missing"), ("kit", "path", "c", "missing")])
