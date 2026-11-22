@@ -30,6 +30,13 @@ from ytflow.prompts import init_text as prompts_init_text
 from ytflow.prompts import parse as parse_prompts
 from ytflow.prompts import write as write_prompts
 from ytflow.prompts import written_scenes
+from ytflow.publish import COMPILED as PUBLISH_COMPILED
+from ytflow.publish import SOURCE as PUBLISH_SOURCE
+from ytflow.publish import build as build_publish
+from ytflow.publish import init_text as publish_init_text
+from ytflow.publish import parse as parse_publish
+from ytflow.publish import template_body
+from ytflow.publish import write as write_publish
 from ytflow.references import as_dict, measure, recommend, reference_files
 from ytflow.script import COMPILED as SCRIPT_COMPILED
 from ytflow.script import SOURCE as SCRIPT_SOURCE
@@ -205,6 +212,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("video")
     p.add_argument("--version", dest="step_version", help="timeline version (default: latest)")
     p.set_defaults(func=cmd_export_kdenlive)
+
+    publish = sub.add_parser("publish", help="title, description, tags").add_subparsers(dest="action", required=True)
+    p = publish.add_parser("init", help="start a publish version (carries the title, summary and tags over)")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.set_defaults(func=cmd_publish_init)
+    p = publish.add_parser("build", help="check publish.md and write the description, tags and captions")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.add_argument("--version", dest="step_version", help="publish version (default: latest)")
+    p.set_defaults(func=cmd_publish_build)
 
     p = sub.add_parser("status", help="show where a channel or video is and what to do next")
     p.add_argument("channel")
@@ -685,6 +703,52 @@ def cmd_timeline_preview(args: argparse.Namespace) -> int:
     print(f"rendering {clock(data['video']['duration'])} at {args.scale:g}× size…", file=sys.stderr)
     render_preview(data, video_dir, version / "subtitles.ass", output, args.scale)
     print(output)
+    return 0
+
+
+def cmd_publish_init(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    kit, _ = ready_kit_file(ws, args.channel, args.video, "publish.md")
+    timeline_dir, _ = built_timeline(ws, args.channel, args.video, None)
+    step_dir = ws.video(args.channel, args.video) / "publish"
+    previous = latest_version(step_dir)
+    carried = (previous / PUBLISH_SOURCE).read_text() if previous and (previous / PUBLISH_SOURCE).is_file() else None
+    target = new_version(step_dir)
+    (target / PUBLISH_SOURCE).write_text(publish_init_text(timeline_dir.name, kit.name, carried))
+    print(target / PUBLISH_SOURCE)
+    if carried:
+        print(f"carried the title, summary and tags over from {previous.name}", file=sys.stderr)
+    return 0
+
+
+def cmd_publish_build(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    kit, template = ready_kit_file(ws, args.channel, args.video, "publish.md")
+    video_dir = ws.video(args.channel, args.video)
+    version = version_dir(video_dir / "publish", args.step_version)
+    source = version / PUBLISH_SOURCE
+    if not source.is_file():
+        raise WorkspaceError(f"no {PUBLISH_SOURCE} in {version} — run: ytflow publish init {args.channel} {args.video}")
+    meta, problems = parse_publish(source.read_text())
+    timeline_dir, timeline = built_timeline(ws, args.channel, args.video, meta.timeline_version)
+    result, more = build_publish(meta, template_body((kit / "publish.md").read_text()), template["base_tags"], timeline)
+    problems += more
+    if result is None or problems:
+        for problem in problems:
+            print(f"- {problem}")
+        print(f"publish {version.name}: {len(problems)} problem(s); {PUBLISH_COMPILED} not written")
+        return 1
+    sources = {"timeline_version": timeline_dir.name, "kit_version": kit.name}
+    write_publish(version, result, timeline, sources)
+    for warning in result.warnings:
+        print(f"warning: {warning}")
+    latest = latest_version(video_dir / "timeline")
+    if latest is not None and latest != timeline_dir:
+        print(f"warning: made from timeline {timeline_dir.name}, but {latest.name} exists — run publish init again")
+    print(
+        f"publish {version.name}: ok — {len(result.title)}-character title, {len(result.description)}-character "
+        f"description, {len(result.tags)} tags; files in {version}"
+    )
     return 0
 
 

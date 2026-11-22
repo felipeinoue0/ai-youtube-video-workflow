@@ -79,6 +79,12 @@ def check_toml(path: Path) -> list[str]:
     return []
 
 
+def check_publish(path: Path) -> list[str]:
+    from ytflow.publish import check_template, template_body
+
+    return check_template(front_matter(path), template_body(path.read_text()))
+
+
 def check_edit_preset(path: Path) -> list[str]:
     from ytflow.timeline import check_preset_file
 
@@ -96,6 +102,7 @@ CHECKS: dict[str, Callable[[Path], list[str]]] = {
     "visual-style.md": check_visual_style,
     "voice.md": check_voice_file,
     "edit-preset.toml": check_edit_preset,
+    "publish.md": check_publish,
 }
 
 
