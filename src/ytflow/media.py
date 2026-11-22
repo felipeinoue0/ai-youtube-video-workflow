@@ -19,6 +19,13 @@ def ffprobe() -> str:
     return path
 
 
+def ffmpeg() -> str:
+    path = shutil.which("ffmpeg")
+    if path is None:
+        raise MediaError("ffmpeg not found on PATH — install ffmpeg (it is in the dev image)")
+    return path
+
+
 def image_size(path: Path) -> tuple[int, int]:
     """(width, height) of an image file."""
     result = subprocess.run(

@@ -9,6 +9,10 @@ import sys
 from pathlib import Path
 
 from ytflow import __version__
+from ytflow.align import COMPILED as TIMING_COMPILED
+from ytflow.align import DEFAULT_MODEL, METHODS, MIN_MATCHED, AlignError, choose_method, lay_out, load_words, transcribe
+from ytflow.align import align as align_narration
+from ytflow.align import write as write_timing
 from ytflow.branding import check_branding
 from ytflow.images import apply_plan, import_plan
 from ytflow.images import check as check_images
@@ -158,6 +162,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("channel")
     p.add_argument("video")
     p.set_defaults(func=cmd_audio_check)
+
+    p = sub.add_parser("align", help="replace the script's estimated timings with where each phrase is spoken")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.add_argument(
+        "--method",
+        choices=METHODS,
+        default="auto",
+        help="default: words if --words, else whisper if installed, else chapters",
+    )
+    p.add_argument("--words", type=Path, help="word timestamps from another tool: [{word, start, end}, ...]")
+    p.add_argument("--model", default=DEFAULT_MODEL, help=f"faster-whisper model (default: {DEFAULT_MODEL})")
+    p.add_argument("--language", help="narration language for faster-whisper, e.g. en (default: detect)")
+    p.set_defaults(func=cmd_align)
 
     p = sub.add_parser("status", help="show where a channel or video is and what to do next")
     p.add_argument("channel")
@@ -474,13 +492,7 @@ def cmd_voiceover_text(args: argparse.Namespace) -> int:
 def cmd_audio_check(args: argparse.Namespace) -> int:
     ws = workspace(args)
     video_dir = ws.video(args.channel, args.video)
-    voiceover_dir = version_dir(video_dir / "voiceover", None)
-    path = voiceover_dir / VOICEOVER_COMPILED
-    if not path.is_file():
-        raise WorkspaceError(
-            f"no {VOICEOVER_COMPILED} in {voiceover_dir} — run: ytflow voiceover text {args.channel} {args.video}"
-        )
-    export = json.loads(path.read_text())
+    voiceover_dir, export = voiceover_export(ws, args.channel, args.video)
     chapters = {c["file"]: c for c in export["chapters"]}
     audio_dir = video_dir / "audio"
     report = check_audio(audio_dir, list(chapters))
@@ -513,6 +525,63 @@ def cmd_audio_check(args: argparse.Namespace) -> int:
     return 1 if bad else 0
 
 
+def voiceover_export(ws: Workspace, channel: str, video: str) -> tuple[Path, dict]:
+    directory = version_dir(ws.video(channel, video) / "voiceover", None)
+    path = directory / VOICEOVER_COMPILED
+    if not path.is_file():
+        raise WorkspaceError(f"no {VOICEOVER_COMPILED} in {directory} — run: ytflow voiceover text {channel} {video}")
+    return directory, json.loads(path.read_text())
+
+
+def cmd_align(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    video_dir = ws.video(args.channel, args.video)
+    voiceover_dir, export = voiceover_export(ws, args.channel, args.video)
+    script_dir, script = built_script(ws, args.channel, args.video, export["script_version"])
+    chapter_files = [c["file"] for c in export["chapters"]]
+    report = check_audio(video_dir / "audio", chapter_files)
+    if report.layout == "none" or report.problems or report.missing:
+        raise WorkspaceError(
+            f"the narration audio is not complete — run: ytflow audio check {args.channel} {args.video}"
+        )
+    method = choose_method(args.method, report.layout, args.words)
+    named = [(f"audio/{f.name}", duration(f)) for f in report.files]
+    parts = lay_out(named, export["chapter_break"] if report.layout == "chapters" else 0.0)
+    index_of = {c["file"]: c["index"] for c in export["chapters"]}
+    chapter_of_part = [index_of.get(f.stem) for f in report.files]
+
+    def heard() -> list:
+        if method == "words":
+            return load_words(args.words)
+        words = []
+        for file, part in zip(report.files, parts, strict=True):
+            print(f"transcribing {file.name} with faster-whisper ({args.model})…", file=sys.stderr)
+            for word in transcribe(file, args.model, args.language):
+                word.start += part.start
+                word.end += part.start
+                words.append(word)
+        return words
+
+    timing = align_narration(script, parts, chapter_of_part, method, heard)
+    if timing.matched is not None and timing.matched < MIN_MATCHED:
+        raise AlignError(
+            f"only {timing.matched:.0%} of the script's words were heard in the audio — it may not be this script "
+            f"(voiceover {voiceover_dir.name}, script {script_dir.name}); listen to it, or regenerate it"
+        )
+    version = new_version(video_dir / "timing")
+    write_timing(version, timing, script_dir.name, voiceover_dir.name)
+    print(version / TIMING_COMPILED)
+    heard_note = f", {timing.matched:.0%} of words heard" if timing.matched is not None else ""
+    print(f"timing {version.name}: {method}{heard_note}, {len(timing.phrases)} phrases, {clock(timing.duration)}")
+    for chapter in timing.chapters:
+        print(f"  {clock(chapter['start'])} {chapter['title']}")
+    for name in timing.interpolated:
+        print(f"warning: {name}: none of its words were heard; its time is estimated from its neighbours")
+    if method == "chapters":
+        print("note: character-count timing is approximate within a chapter — check the subtitles in subtitles.srt")
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     ws = workspace(args)
     lines, next_action = channel_status(ws, args.channel)
@@ -533,6 +602,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         return args.func(args)
-    except (WorkspaceError, MediaError, KitError) as err:
+    except (WorkspaceError, MediaError, KitError, AlignError) as err:
         print(f"ytflow: error: {err}", file=sys.stderr)
         return 1

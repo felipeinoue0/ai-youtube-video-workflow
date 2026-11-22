@@ -1,13 +1,14 @@
 ---
 name: voiceover
-description: Choose and record the channel's ElevenLabs voice in the kit, export the video's narration text (chapter pauses, pronunciation spellings), and guide the creator through generating the audio in ElevenLabs and saving it where the edit step finds it. Use after the script is approved, or when the narration audio is missing or wrong.
+description: Choose and record the channel's ElevenLabs voice in the kit, export the video's narration text (chapter pauses, pronunciation spellings), guide the creator through generating the audio in ElevenLabs, then align it to the script for real phrase timings. Use after the script is approved, or when the narration audio or its timing is missing or wrong.
 ---
 
 # Voiceover
 
 Per-video step 3 of the ai-youtube-video-workflow. The script becomes the
 narration: `ytflow` exports the exact text to paste into ElevenLabs, with the
-kit's voice settings beside it, and checks the audio the creator brings back.
+kit's voice settings beside it, checks the audio the creator brings back, and
+aligns it to the script for the real timings.
 The **same voice and settings** on every video is what makes video 2, 3, 4
 sound like video 1, so they live in the channel kit (`voice.md`), not in the
 video.
@@ -145,9 +146,49 @@ It reports:
   paragraph, or the wrong speed;
 - a warning when a newer script version exists than the one exported.
 
-Listen to anything it warns about. When it ends with `ok`, run
-`ytflow status <channel> <video>`: the next step aligns the narration to the
-script for the real timings.
+Listen to anything it warns about, and fix it before going on.
+
+## 5. Align the narration to the script
+
+The script's times are estimates from the kit's words per minute. Subtitles
+and image cuts must follow the real voice:
+
+```bash
+ytflow align <channel> <video>
+```
+
+It writes `timing/v<N>/timing.json` (where each phrase and chapter is spoken)
+and `subtitles.srt`. It picks the method on its own:
+
+- **faster-whisper** (`uv sync --extra align` once; the first run downloads the
+  model) listens to the audio and matches the heard words to the script.
+  Precise, and works with either audio layout. `--model small` is the default;
+  `--model tiny` is quicker on a slow machine, `--language en` skips language
+  detection.
+- **Character count**, without the extra: needs one audio file per chapter;
+  each chapter's length is shared among its phrases by their length. Close
+  for an even narration, rougher where the voice pauses or speeds up.
+- **`--words FILE`**: word timestamps from another tool
+  (`[{"word", "start", "end"}, ...]`).
+
+Read its report with the creator:
+
+- `N% of words heard` — under 80% it refuses: the audio is probably not this
+  script (an old take, a skipped chapter). Re-check with `ytflow audio check`
+  and listen.
+- `none of its words were heard` — that phrase's time is estimated from its
+  neighbours. Listen at that point; a mispronounced name is the usual cause
+  (add it to `[pronunciations]` and regenerate that chapter).
+- The chapter start times are the ones the description's chapter list will use.
+
+Spot-check the sync: open the narration with `subtitles.srt` in a player (VLC,
+or drag both into Kdenlive) and skim the start, a chapter change and the end.
+With per-chapter audio, the timeline places the chapter files one after another
+with the kit's `chapter_break` between them, so check against that, not one
+chapter file alone.
+
+Run `ytflow align` again whenever the audio changes; each run is a new version.
+Then `ytflow status <channel> <video>`: next is the edit.
 
 ## Rules
 

@@ -165,7 +165,10 @@ def test_status_walks_the_creator_through_the_steps(tmp_path: Path) -> None:
     out = ok(tmp_path, "status", "c", "v")
     assert "1/2 chapter files" in out and "skill: voiceover" in next_line(out)
     (video / "audio" / "02_end.mp3").write_bytes(b"")
-    (Path(ok(tmp_path, "version", "new", str(video / "timing"))) / "out.txt").write_text("x")
+    timing = Path(ok(tmp_path, "version", "new", str(video / "timing")))
+    (timing / "subtitles.srt").write_text("x")
+    assert "ytflow align" in next_line(ok(tmp_path, "status", "c", "v"))  # no timing.json yet
+    (timing / "timing.json").write_text("{}")
     assert next_line(ok(tmp_path, "status", "c", "v")) == "next: fill edit-preset.toml in kit v1 (skill: edit)"
     fill(kit, "edit-preset.toml")
     for step in ("timeline", "publish"):
