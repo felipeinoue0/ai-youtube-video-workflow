@@ -1,0 +1,20 @@
+.git
+.opencode/memory
+node_modules
+__pycache__
+*.log
+*.pyc
+*.db
+dist
+build
+tmp
+*.egg-info
+# Local configuration and credentials never belong in the build context. The
+# sandbox reads them at RUN time from the bind mount, so the image never
+# needs them — and a layer is immutable: a credential copied in stays in the
+# image after the file is deleted.
+.env
+.env.*
+.envrc
+# Sandbox marker files are per-checkout state, not source.
+.dev/

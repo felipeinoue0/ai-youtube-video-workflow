@@ -1,0 +1,7 @@
+# Who reviews changes to what. Last matching pattern wins.
+#
+# Requires "Allow this repository to assign pull requests to reviewers" in
+# Settings -> General -> Pull Requests. Without it, GitHub silently ignores
+# these rules and nothing is enforced.
+
+* @fiwon123
