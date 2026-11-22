@@ -172,7 +172,10 @@ def test_status_walks_the_creator_through_the_steps(tmp_path: Path) -> None:
     assert next_line(ok(tmp_path, "status", "c", "v")) == "next: fill edit-preset.toml in kit v1 (skill: edit)"
     fill(kit, "edit-preset.toml")
     (Path(ok(tmp_path, "version", "new", str(video / "timeline"))) / "timeline.json").write_text("{}")
-    (Path(ok(tmp_path, "version", "new", str(video / "publish"))) / "out.txt").write_text("x")
+    publish = Path(ok(tmp_path, "version", "new", str(video / "publish")))
+    (publish / "publish.md").write_text("x")
+    assert "ytflow publish init" in next_line(ok(tmp_path, "status", "c", "v"))  # no publish.json yet
+    (publish / "publish.json").write_text("{}")
     assert next_line(ok(tmp_path, "status", "c", "v")).startswith("next: done")
 
 

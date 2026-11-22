@@ -155,13 +155,32 @@ that is already filled, in a kit some video uses, starts a new kit version
 instead, so finished videos keep the kit they were made with. Tell the creator
 when that happens (the CLI says so on stderr).
 
-In that kit, rewrite **`publish.md`** with no `TODO(ytflow)` lines left in it:
+In that kit, rewrite **`publish.md`** with no `TODO(ytflow)` lines left in it.
+It is the description template every video gets:
 
-- a description **template** for every video: an opening line slot, a
-  `{chapters}` placeholder, the links from the interview, and a short call to
-  action in the channel's tone
-- **base tags** every video gets (3–6, taken from the channel keywords)
-- the channel name and handle
+- the front matter's `base_tags`: 3–6 tags every video gets, taken from the
+  channel keywords
+- below it, the description itself: `{summary}` where each video's opening
+  lines go and `{chapters}` where its chapter list goes (each exactly once;
+  `{title}` may appear too), then the links from the interview, one per line,
+  and a short call to action in the channel's tone. No `<` or `>`: YouTube
+  rejects them.
+
+```text
++++
+base_tags = ["roman history", "ancient rome", "history documentary"]
++++
+{summary}
+
+Chapters:
+{chapters}
+
+Sources and further reading: (the links from the interview)
+
+New story from Rome every week: subscribe so you do not miss it.
+```
+
+`ytflow kit check <channel> --file publish.md` must print `ok`.
 
 If `edit-preset.toml` still has its `TODO(ytflow)` line, set the `[subtitles]`
 and `[chapters]` fonts to the brief's body and heading fonts, and the subtitle

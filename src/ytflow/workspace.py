@@ -88,7 +88,13 @@ VIDEO_STEPS = (
         kit_file="edit-preset.toml",
         done_file="timeline.json",
     ),
-    Step("publish", "publish", "write the title, description and tags", kit_file="publish.md"),
+    Step(
+        "publish",
+        "publish",
+        "write the title, description and tags: ytflow publish init, then ytflow publish build",
+        kit_file="publish.md",
+        done_file="publish.json",
+    ),
 )
 
 # Which skill fills each kit file. The channel steps (branding, style) fill theirs before
@@ -204,12 +210,16 @@ moves = ["zoom-in", "zoom-out", "pan-left", "pan-right"]
 max_zoom = 1.12           # never more than 12% in
 zoom_per_second = 0.03    # slow: a 4 s image moves 12%
 """,
-    "publish.md": f"""# Publish template
+    "publish.md": f"""+++
+# Read by `ytflow publish build`; `ytflow kit check` validates it.
+base_tags = []   # tags every video gets, e.g. ["roman history", "ancient rome"]
++++
+{{summary}}
 
-Reused for every video's description and tags.
+{{chapters}}
 
-{TODO_MARK}: description template (intro line, chapters, links, call to action)
-{TODO_MARK}: base tags every video gets
+{TODO_MARK}: links (sources, other videos, socials), one per line
+{TODO_MARK}: a short call to action in the channel's tone
 """,
 }
 
