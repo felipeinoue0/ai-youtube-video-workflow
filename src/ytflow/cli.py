@@ -17,6 +17,7 @@ from ytflow.branding import check_branding
 from ytflow.images import apply_plan, image_files, import_plan
 from ytflow.images import check as check_images
 from ytflow.images import suggestion as image_suggestion
+from ytflow.kdenlive import export as export_kdenlive
 from ytflow.kit import KitError, check_kit, front_matter
 from ytflow.media import MediaError, duration
 from ytflow.preview import FILE as PREVIEW_FILE
@@ -195,6 +196,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", dest="step_version", help="timeline version (default: latest)")
     p.add_argument("--scale", type=float, default=0.5, help="output size as a share of the video size (default 0.5)")
     p.set_defaults(func=cmd_timeline_preview)
+
+    export = sub.add_parser("export", help="write the timeline as an editor project").add_subparsers(
+        dest="action", required=True
+    )
+    p = export.add_parser("kdenlive", help="write <video>.kdenlive next to timeline.json")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.add_argument("--version", dest="step_version", help="timeline version (default: latest)")
+    p.set_defaults(func=cmd_export_kdenlive)
 
     p = sub.add_parser("status", help="show where a channel or video is and what to do next")
     p.add_argument("channel")
@@ -643,20 +653,34 @@ def cmd_timeline_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def built_timeline(ws: Workspace, channel: str, video: str, version: str | None) -> tuple[Path, dict]:
+    video_dir = ws.video(channel, video)
+    if version is None and latest_version(video_dir / "timeline") is None:
+        raise WorkspaceError(f"no timeline yet — run: ytflow timeline build {channel} {video}")
+    directory = version_dir(video_dir / "timeline", version)
+    path = directory / TIMELINE_COMPILED
+    if not path.is_file():
+        raise WorkspaceError(f"no {TIMELINE_COMPILED} in {directory} — run: ytflow timeline build {channel} {video}")
+    return directory, json.loads(path.read_text())
+
+
+def cmd_export_kdenlive(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    version, data = built_timeline(ws, args.channel, args.video, args.step_version)
+    subtitles = version / "subtitles.ass"
+    if not subtitles.is_file():
+        raise WorkspaceError(f"no subtitles.ass in {version} — run: ytflow timeline build {args.channel} {args.video}")
+    project = export_kdenlive(data, version / f"{args.video}.kdenlive", ws.video(args.channel, args.video), subtitles)
+    print(project)
+    return 0
+
+
 def cmd_timeline_preview(args: argparse.Namespace) -> int:
     ws = workspace(args)
     video_dir = ws.video(args.channel, args.video)
-    if args.step_version is None and latest_version(video_dir / "timeline") is None:
-        raise WorkspaceError(f"no timeline yet — run: ytflow timeline build {args.channel} {args.video}")
-    version = version_dir(video_dir / "timeline", args.step_version)
-    path = version / TIMELINE_COMPILED
-    if not path.is_file():
-        raise WorkspaceError(
-            f"no {TIMELINE_COMPILED} in {version} — run: ytflow timeline build {args.channel} {args.video}"
-        )
     if not 0.1 <= args.scale <= 1:
         raise WorkspaceError("--scale must be between 0.1 and 1")
-    data = json.loads(path.read_text())
+    version, data = built_timeline(ws, args.channel, args.video, args.step_version)
     output = version / PREVIEW_FILE
     print(f"rendering {clock(data['video']['duration'])} at {args.scale:g}× size…", file=sys.stderr)
     render_preview(data, video_dir, version / "subtitles.ass", output, args.scale)

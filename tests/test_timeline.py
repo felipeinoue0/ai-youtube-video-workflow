@@ -265,3 +265,113 @@ def test_status_marks_the_timeline_done(tmp_path: Path) -> None:
     setup(tmp_path)
     ok(tmp_path, "timeline", "build", "c", "v")
     assert "timeline   v1" in ok(tmp_path, "status", "c", "v").stdout
+
+
+def track_positions(playlist) -> list[tuple[int, int, object]]:
+    """(start frame, length, entry element) for each entry of a playlist, blanks counted."""
+    clock, out = 0, []
+    for child in playlist:
+        if child.tag == "blank":
+            clock += int(child.get("length"))
+        elif child.tag == "entry":
+            length = int(child.get("out")) - int(child.get("in")) + 1
+            out.append((clock, length, child))
+            clock += length
+    return out
+
+
+def prop(element, name: str) -> str | None:
+    found = element.find(f"property[@name='{name}']")
+    return None if found is None else found.text
+
+
+def test_export_kdenlive_writes_the_timeline_as_an_mlt_project(tmp_path: Path) -> None:
+    import xml.etree.ElementTree as ET
+
+    video = setup(tmp_path)
+    early = ytflow(tmp_path, "export", "kdenlive", "c", "v")
+    assert early.returncode == 1 and "ytflow timeline build c v" in early.stderr
+    ok(tmp_path, "timeline", "build", "c", "v")
+    version = video / "timeline" / "v1"
+    project = Path(ok(tmp_path, "export", "kdenlive", "c", "v").stdout.strip())
+    assert project == version / "v.kdenlive"
+    data = json.loads((version / "timeline.json").read_text())
+    fps = 30
+
+    def f(seconds: float) -> int:
+        return round(seconds * fps)
+
+    root = ET.parse(project).getroot()
+    assert root.tag == "mlt" and root.get("producer") == "main_bin"
+    profile = root.find("profile")
+    assert (profile.get("width"), profile.get("height"), profile.get("frame_rate_num")) == ("1920", "1080", "30")
+    assert (profile.get("display_aspect_num"), profile.get("display_aspect_den")) == ("16", "9")
+    main_bin = root.find("playlist[@id='main_bin']")
+    assert prop(main_bin, "kdenlive:docproperties.version") == "1.04"
+    producers = {p.get("id"): p for p in root.iter("producer")}
+    for producer in producers.values():  # every media path resolves from the project's folder
+        resource = prop(producer, "resource")
+        if resource != "black":
+            assert (project.parent / resource).is_file(), resource
+
+    # V1/V2 alternate the clips at their timeline positions, each with its camera move
+    v1 = track_positions(root.find("playlist[@id='playlist_v1']"))
+    v2 = track_positions(root.find("playlist[@id='playlist_v2']"))
+    placed = sorted(v1 + v2, key=lambda item: item[0])
+    assert len(v1) == 3 and len(v2) == 2
+    for (start, length, entry), clip in zip(placed, data["clips"], strict=True):
+        assert start == f(clip["start"]) and length == f(clip["end"]) - f(clip["start"])
+        producer = producers[entry.get("producer")]
+        assert prop(producer, "resource") == f"../../{clip['image']}"
+        transform = next(x for x in entry.findall("filter") if prop(x, "mlt_service") == "qtblend")
+        first, last = prop(transform, "rect").split(";")
+        view = clip["camera"]["from"]
+        x, y, w, h, _ = (float(v) for v in first.split("=")[1].split())
+        assert w == pytest.approx(1920 / view["w"], abs=0.01) and x == pytest.approx(-view["x"] * w, abs=0.01)
+        assert last.startswith("00:00:")  # Kdenlive keyframe timecodes
+    fades = [prop(x, "kdenlive_id") for _, _, e in placed for x in e.findall("filter")]
+    assert fades.count("fade_from_black") == 1 and fades.count("fade_to_black") == 1
+    assert prop(placed[0][2].findall("filter")[1], "kdenlive_id") == "fade_from_black"
+
+    # one composition per cut over the clips' overlap, of the timeline's type
+    tractor = root.find("tractor[@id='maintractor']")
+    user = [t for t in tractor.findall("transition") if prop(t, "internal_added") is None]
+    assert [prop(t, "kdenlive:transition_type") for t in user] == [t["type"] for t in data["transitions"]]
+    for composition, transition in zip(user, data["transitions"], strict=True):
+        start = f(transition["at"] - transition["seconds"] / 2)
+        assert int(composition.get("in")) == start
+        assert int(composition.get("out")) == start + f(transition["seconds"]) - 1
+        assert (prop(composition, "a_track"), prop(composition, "b_track")) == ("2", "3")
+    services = {prop(t, "kdenlive:transition_type"): prop(t, "mlt_service") for t in user}
+    assert services == {"wipe-left": "luma", "dissolve": "luma", "wipe-right": "luma"}
+    # the first cut brings clip 2 in on V2; the second brings clip 3 in on V1, so it runs backwards
+    assert [prop(t, "reverse") for t in user[:2]] == ["0", "1"]
+
+    # narration on A1 at its start; subtitles from the timeline's ASS file
+    a1 = track_positions(root.find("playlist[@id='playlist_a1']"))
+    assert [(start, prop(producers[e.get("producer")], "resource")) for start, _, e in a1] == [
+        (f(a["start"]), f"../../{a['file']}") for a in data["audio"]
+    ]
+    subtitle = next(x for x in tractor.findall("filter") if prop(x, "mlt_service") == "avfilter.subtitles")
+    assert prop(subtitle, "av.filename") == "subtitles.ass"
+    tracks = [t.get("producer") for t in tractor.findall("track")]
+    assert tracks == ["black_track", "tractor_a1", "tractor_v1", "tractor_v2"]
+
+
+def test_export_kdenlive_slides(tmp_path: Path) -> None:
+    import xml.etree.ElementTree as ET
+
+    video = setup(tmp_path)
+    preset = kit_dir(tmp_path) / "edit-preset.toml"
+    preset.write_text(
+        preset.read_text().replace(
+            'types = ["dissolve", "wipe-left", "wipe-right", "slide-up"]', 'types = ["dissolve", "slide-up"]'
+        )
+    )
+    ok(tmp_path, "timeline", "build", "c", "v")
+    root = ET.parse(Path(ok(tmp_path, "export", "kdenlive", "c", "v").stdout.strip())).getroot()
+    slides = [t for t in root.iter("transition") if prop(t, "kdenlive:transition_type") == "slide-up"]
+    assert slides and all(prop(t, "mlt_service") == "composite" for t in slides)
+    # clip 2 comes in on V2 (b): it starts one frame-height below and ends in place
+    assert prop(slides[0], "geometry") == "0=0 1080 1920 1080 1;17=0 0 1920 1080 1"
+    assert (video / "timeline" / "v1" / "v.kdenlive").is_file()
