@@ -1,0 +1,82 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Environment
+.env
+.env.*
+!.env.example
+.envrc
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.venv/
+venv/
+env/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+coverage/
+
+# Build
+*.log
+build/
+*.tar.gz
+# Windows resource object: generated from assets/logo.png between the tool run
+# and the build, then removed. If one is ever left behind it is stale.
+*.syso
+# The Fyne package embeds this copy; `make build-gui` writes it from
+# assets/logo.png, so the tree keeps one icon source.
+cmd/*-gui/icon.png
+# fyne-cross does not pass -ldflags through reliably; the release workflow
+# injects the version through this generated file instead.
+cmd/*-gui/zz_version_generated.go
+*.icns
+
+# Creator workspace: channel and video outputs, reference transcripts, images
+# and audio. The creator's content, never committed.
+channels/
+
+# Linters
+.ruff_cache/
+
+# Docker
+docker-compose.override.yml
+
+# Dev sandbox per-checkout state (the entrypoint's start marker)
+.dev/
+
+# IDE
+*.iml
+.classpath
+.project
+.settings/
+
+# OpenCode
+.opencode/node_modules/
+# OpenCode session memory — agent-local state. It records in-flight work
+# (issue, branch, next action), which is per-machine and per-session by nature,
+# so it is never committed. These lines are already here; no need to add them.
+.opencode/memory/
+.opencode/progress.md
+
+# Claude Code per-user overrides — personal permission grants, never shared.
+.claude/settings.local.json
