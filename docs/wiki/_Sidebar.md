@@ -2,6 +2,7 @@
 
 - 🏠 [Home](Home)
 - 🚀 [How to use](https://github.com/fiwon123/ai-youtube-video-workflow#how-to-use)
+- 🎬 [Walkthrough](Walkthrough)
 - 🛠️ [How to develop](https://github.com/fiwon123/ai-youtube-video-workflow#how-to-develop)
 - 🐛 [Issues](https://github.com/fiwon123/ai-youtube-video-workflow/issues)
 

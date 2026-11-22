@@ -184,5 +184,10 @@ is its own issue and branch.
 8. #15 `timeline.json` builder and Kdenlive exporter.
 9. #16 Publish skill: title, description, tags.
 10. #17 Guide skill and an end-to-end walkthrough of a sample video.
+11. #27 Verify the exported project in Kdenlive 26.08 (the exporter is tested by
+    parsing its XML; no Kdenlive or melt was available to open it).
+
+Items 1–10 are built; the end-to-end run in `docs/wiki/Walkthrough.md` was
+made with them in a fresh workspace (2026-11-22).
 
 Later: a second editor exporter; making video N from an existing kit faster.

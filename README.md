@@ -42,34 +42,46 @@ those tools for you.
 
 ## How to use
 
-You work with an AI agent inside this repository. Every step below is a skill
-the agent runs with you. Each output lands in
-`channels/<channel>/videos/<video>/<step>/v<N>/`, so you can ask for another
-version and compare it with the previous ones.
+You work with an AI agent inside this repository. Say **"let's continue"** (or
+"start a new video"): the `guide` skill runs `ytflow status` and hands over to
+the skill for the next step. Every step writes a new version under
+`channels/<channel>/…/<step>/v<N>/`, so you can ask for another one and compare.
 
 **Once per channel**
 
-1. **Branding**: the agent walks you through creating the logo and banner in
-   Canva (sizes, safe areas, style direction), then writes the channel
-   description and tags.
+1. **Branding**: a short interview, then the logo and banner made in Canva
+   (sizes, safe areas, style direction), the channel description and keywords,
+   and the description template every video will use.
+2. **Style**: give the agent 2–5 transcripts of videos you like. It measures
+   them and writes the style guide (hook, pacing, structure, tone) and the
+   visual anchor added to every image prompt.
 
 **For every video**
 
-2. **Style references**: give the agent a few transcripts of videos you like.
-   It writes a style guide: hook, pacing, structure, tone.
-3. **Script**: a script for your video, organized by time and phrase.
-4. **Image prompts**: one detailed prompt per phrase part for Google Flow,
-   named `<enumerate_id>_<part_of_phrase>` (e.g. `012_the-river-at-dawn`). Save
-   each image under that name; the files then sort into timeline order.
-5. **Voiceover**: a narration file to paste into ElevenLabs for the audio.
-6. **Edit**: hand back the images and the audio. The agent builds a Kdenlive
-   project with boxed subtitles, a chapter title in the top-left, a fade in and
-   out, varied transitions between images, and slow camera motion on each one.
-7. **Publish**: render in Kdenlive, pick your title, and get the description
-   and tags to match.
+3. **Script**: an outline, then the script, one phrase per line in chapters.
+4. **Images**: one Google Flow prompt per phrase, named
+   `<enumerate_id>_<part_of_phrase>` (e.g. `012_the-river-at-dawn`). Download
+   the images; `ytflow images import` renames them in download order.
+5. **Narration**: the text to paste into ElevenLabs. Save the audio back, and
+   `ytflow align` times every phrase to the real voice.
+6. **Edit**: a Kdenlive project with boxed subtitles, the chapter title
+   top-left, a fade in and out, varied transitions and a slow pan or zoom on
+   each image — plus a quick preview render.
+7. **Publish**: pick your title; get the description with chapter timestamps,
+   the tags, and the captions file.
+
+The first video also settles the voice and the edit; they are stored in the
+channel **kit**, so video 2, 3, 4 come out with the same style, look, voice and
+edit without setting anything up again.
+
+**[Walkthrough](docs/wiki/Walkthrough.md)**: one sample channel from an empty
+folder to a finished video and the start of the next one, with every command
+and its real output.
 
 What you need: an AI coding agent, plus the tools you use along the way
 (Canva, Google Flow, ElevenLabs, Kdenlive). None of them needs an API key here.
+For the most precise timing, `uv sync --extra align` installs faster-whisper
+(optional).
 
 ## Architecture
 
@@ -189,8 +201,14 @@ make reset       # stops the sandbox and deletes its volumes, agent logins inclu
 
 ## What is not proven
 
-- **The whole workflow**: none of the steps is built yet. Each lands as its own
-  issue, in the order above.
+- **The Kdenlive project in Kdenlive itself**: the exporter is tested by
+  reading its XML back, and the edit was checked frame by frame in the ffmpeg
+  preview, but the project has not yet been opened in Kdenlive (tracked in
+  [#27](https://github.com/fiwon123/ai-youtube-video-workflow/issues/27)).
+- **The external tools**: the [walkthrough](docs/wiki/Walkthrough.md) ran with
+  stand-ins for Canva, Google Flow and ElevenLabs (generated images, a
+  synthetic voice). Their real download names and settings screens may differ
+  from what the skills describe.
 - **The dev sandbox on macOS and native Windows**: it was only started on Linux.
 
 ## License
