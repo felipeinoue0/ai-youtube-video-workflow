@@ -50,6 +50,13 @@ env:
   # below rather than loosening it further.
   DEV_BRANCH_PATTERN: '^(feat|fix|refactor|docs|test|chore|ci)/[0-9]+-'
 
+  # Dependabot's own branches (`dependabot/<ecosystem>/...`) may target `dev`
+  # too -- AGENTS.md points Dependabot at `dev` -- but only when Dependabot
+  # opened the pull request. The author is checked as well as the name, so
+  # naming a branch `dependabot/...` does not get anyone else past the gate.
+  BOT_BRANCH_PATTERN: '^dependabot/'
+  BOT_LOGIN: 'dependabot[bot]'
+
   # Branches that may target `main`:
   #   - `dev`  -- the release pull request. The head of that PR *is* the
   #               integration branch, because the release is `dev` -> `main`
@@ -73,8 +80,18 @@ jobs:
         env:
           HEAD_REF: ${{ github.head_ref }}
           BASE_REF: ${{ github.base_ref }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           set -euo pipefail
+
+          if [[ "$BASE_REF" == dev && "$HEAD_REF" =~ $BOT_BRANCH_PATTERN ]]; then
+            if [[ "$AUTHOR" == "$BOT_LOGIN" ]]; then
+              echo "accepted: '$HEAD_REF' -> '$BASE_REF' (opened by $AUTHOR)"
+              exit 0
+            fi
+            echo "::error::branch '$HEAD_REF' is reserved for Dependabot, but this pull request was opened by '$AUTHOR'"
+            exit 1
+          fi
 
           case "$BASE_REF" in
             dev)
