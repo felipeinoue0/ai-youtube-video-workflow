@@ -73,7 +73,15 @@ KIT_OWNERS = {
 CHANNEL_KIT_FILES = ("publish.md", "style-guide.md", "visual-style.md")
 
 KIT_TEMPLATES: dict[str, str] = {
-    "style-guide.md": f"""# Style guide
+    "style-guide.md": f"""+++
+# The numbers the script step uses. Measured from the references by
+# `ytflow references stats`; `ytflow kit check` validates them.
+words_per_minute = 0      # narration pace
+phrase_words_target = 0   # typical words per phrase (one subtitle / one image)
+phrase_words_max = 0      # longest phrase allowed
++++
+
+# Style guide
 
 How this channel's scripts read. Filled by the style skill from the reference
 transcripts in `references/`; every video's script follows it.
@@ -83,7 +91,14 @@ transcripts in `references/`; every video's script follows it.
 {TODO_MARK}: pacing and phrase length
 {TODO_MARK}: tone and vocabulary
 """,
-    "visual-style.md": f"""# Visual style
+    "visual-style.md": f"""+++
+# Read by the image-prompt step; `ytflow kit check` validates it.
+aspect_ratio = "16:9"
+anchor = ""   # one sentence appended verbatim to every Google Flow prompt
+avoid = ""    # what every image must not contain
++++
+
+# Visual style
 
 The anchor every Google Flow prompt is built on, so every video looks like the
 same channel.

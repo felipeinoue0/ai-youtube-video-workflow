@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
 
 from ytflow import __version__
 from ytflow.branding import check_branding
+from ytflow.kit import KitError, check_kit
 from ytflow.media import MediaError
+from ytflow.references import as_dict, measure, recommend, reference_files
 from ytflow.workspace import (
+    KIT_TEMPLATES,
     VERSION_RE,
     Workspace,
     WorkspaceError,
@@ -50,6 +54,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("video", nargs="?", help="edit the kit this video uses instead of the latest")
     p.add_argument("--file", dest="files", action="append", default=[], help="kit file to write (repeatable)")
     p.set_defaults(func=cmd_kit_edit)
+    p = kit.add_parser("check", help="check the kit's files: placeholders left and front-matter values")
+    p.add_argument("channel")
+    p.add_argument("video", nargs="?", help="check the kit this video uses instead of the latest")
+    p.add_argument("--file", dest="files", action="append", default=[], help="kit file to check (repeatable)")
+    p.set_defaults(func=cmd_kit_check)
     p = kit.add_parser("path", help="print the kit directory a video uses (or the channel's latest)")
     p.add_argument("channel")
     p.add_argument("video", nargs="?")
@@ -76,6 +85,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("channel")
     p.add_argument("--version", dest="step_version", help="branding version, e.g. v2 (default: latest)")
     p.set_defaults(func=cmd_branding_check)
+
+    refs = sub.add_parser("references", help="reference transcripts").add_subparsers(dest="action", required=True)
+    p = refs.add_parser("stats", help="measure the transcripts in channels/<channel>/references/")
+    p.add_argument("channel")
+    p.add_argument("--json", action="store_true", help="print JSON instead of a report")
+    p.set_defaults(func=cmd_references_stats)
 
     p = sub.add_parser("status", help="show where a channel or video is and what to do next")
     p.add_argument("channel")
@@ -120,6 +135,46 @@ def cmd_kit_edit(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
     print(path)
+    return 0
+
+
+def cmd_kit_check(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    kit = ws.video_kit(args.channel, args.video) if args.video else ws.kit_dir(ws.channel(args.channel), None)
+    for name in args.files:
+        if name not in KIT_TEMPLATES:
+            raise WorkspaceError(f"unknown kit file {name!r} (kit files: {', '.join(KIT_TEMPLATES)})")
+    report = check_kit(kit, tuple(args.files))
+    for name, problems in report.items():
+        print(f"{name}: {'ok' if not problems else ''}".rstrip())
+        for problem in problems:
+            print(f"  - {problem}")
+    bad = sum(1 for problems in report.values() if problems)
+    print(f"kit {kit.name}: " + (f"{bad} file(s) with problems" if bad else "ok"))
+    return 1 if bad else 0
+
+
+def cmd_references_stats(args: argparse.Namespace) -> int:
+    directory = workspace(args).channel(args.channel) / "references"
+    files = reference_files(directory)
+    if not files:
+        raise WorkspaceError(f"no transcripts in {directory} — save them there as .txt, .srt or .vtt")
+    stats = [measure(f) for f in files]
+    targets = recommend(stats)
+    if args.json:
+        print(json.dumps({"transcripts": [as_dict(s) for s in stats], "recommended": targets}, indent=2))
+        return 0
+    for s in stats:
+        pace = f"{s.words_per_minute:g} wpm over {s.duration_seconds:g}s" if s.words_per_minute else "no timing"
+        print(f"{s.file} ({s.format}): {s.words} words, {s.sentences} sentences, {pace}")
+        print(f"  sentence words: median {s.sentence_words_median:g}, p90 {s.sentence_words_p90:g}")
+        print(
+            f"  questions: {s.question_share:.0%} of sentences; 'you': {s.second_person_per_100_words:g} per 100 words"
+        )
+        print(f"  hook: {s.hook}")
+    print("recommended front matter for style-guide.md:")
+    for key, value in targets.items():
+        print(f"  {key} = {value if value is not None else '(no timed transcript: choose, e.g. 150)'}")
     return 0
 
 
@@ -187,6 +242,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         return args.func(args)
-    except (WorkspaceError, MediaError) as err:
+    except (WorkspaceError, MediaError, KitError) as err:
         print(f"ytflow: error: {err}", file=sys.stderr)
         return 1
