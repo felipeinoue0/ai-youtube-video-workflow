@@ -42,6 +42,7 @@ class Step:
     action: str
     kind: str = "versioned"  # "versioned" (<step>/v<N>/) or "input" (files the creator adds)
     kit_file: str | None = None  # the kit file this step reads; it must be filled first
+    done_file: str | None = None  # a version is done when it holds this file (else: any file)
 
 
 CHANNEL_STEPS = (
@@ -49,7 +50,13 @@ CHANNEL_STEPS = (
 )
 
 VIDEO_STEPS = (
-    Step("script", "script", "write the script from the kit's style guide", kit_file="style-guide.md"),
+    Step(
+        "script",
+        "script",
+        "write script.md from the kit's style guide and run ytflow script build",
+        kit_file="style-guide.md",
+        done_file="script.json",
+    ),
     Step("prompts", "image-prompts", "write one Google Flow prompt per phrase part", kit_file="visual-style.md"),
     Step(
         "images", "image-prompts", "generate the images in Google Flow and save them under their prompt names", "input"
@@ -283,6 +290,18 @@ class Workspace:
         return channel_dir / "kit" / kit
 
 
+def version_dir(step_dir: Path, version: str | None) -> Path:
+    """A named version of a step (``v2``), or its latest when version is None."""
+    if version is None:
+        latest = latest_version(step_dir)
+        if latest is None:
+            raise WorkspaceError(f"no {step_dir.name} version yet — run: ytflow version new {step_dir}")
+        return latest
+    if not VERSION_RE.match(version) or not (step_dir / version).is_dir():
+        raise WorkspaceError(f"no {step_dir.name} version {version!r}")
+    return step_dir / version
+
+
 def files_in(directory: Path) -> list[Path]:
     """Non-hidden files directly in a directory, sorted by name."""
     if not directory.is_dir():
@@ -305,6 +324,8 @@ def step_state(base: Path, step: Step) -> tuple[bool, str]:
         return False, "not started"
     if not files_in(latest):
         return False, f"{latest.name} (empty)"
+    if step.done_file and not (latest / step.done_file).is_file():
+        return False, f"{latest.name} (no {step.done_file} yet)"
     return True, latest.name
 
 

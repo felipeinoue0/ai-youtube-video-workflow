@@ -139,6 +139,9 @@ def test_status_walks_the_creator_through_the_steps(tmp_path: Path) -> None:
     script = Path(ok(tmp_path, "version", "new", str(video / "script")))
     assert "skill: script" in next_line(ok(tmp_path, "status", "c", "v"))  # empty version is not done
     (script / "script.md").write_text("x")
+    out = ok(tmp_path, "status", "c", "v")
+    assert "v1 (no script.json yet)" in out and "ytflow script build" in next_line(out)
+    (script / "script.json").write_text("{}")
     (Path(ok(tmp_path, "version", "new", str(video / "prompts"))) / "prompts.md").write_text("x")
     out = ok(tmp_path, "status", "c", "v")
     assert "Google Flow" in next_line(out) and "images     empty" in out
