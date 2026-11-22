@@ -12,6 +12,7 @@
 | I want to… | Go here |
 | --- | --- |
 | **make a video with the workflow** | [README — How to use](https://github.com/fiwon123/ai-youtube-video-workflow#how-to-use) |
+| **see a whole run, step by step** | [Walkthrough](Walkthrough) |
 | **develop locally** | [README — How to develop](https://github.com/fiwon123/ai-youtube-video-workflow#how-to-develop) |
 | **report an issue** | [Issues](https://github.com/fiwon123/ai-youtube-video-workflow/issues) |
 
