@@ -57,7 +57,13 @@ VIDEO_STEPS = (
         kit_file="style-guide.md",
         done_file="script.json",
     ),
-    Step("prompts", "image-prompts", "write one Google Flow prompt per phrase part", kit_file="visual-style.md"),
+    Step(
+        "prompts",
+        "image-prompts",
+        "run ytflow prompts init, write a scene per phrase, then ytflow prompts build",
+        kit_file="visual-style.md",
+        done_file="prompts.json",
+    ),
     Step(
         "images", "image-prompts", "generate the images in Google Flow and save them under their prompt names", "input"
     ),
@@ -357,6 +363,20 @@ def fill_kit_action(kit: Path, name: str) -> str:
     return f"fill {name} in kit {kit.name} (skill: {KIT_OWNERS[name]})"
 
 
+def images_state(video_dir: Path) -> tuple[bool, str] | None:
+    """Images against the latest built prompts: (done, "12/42 images"), or None before prompts exist."""
+    import json
+
+    from ytflow.images import check
+
+    prompts = latest_version(video_dir / "prompts")
+    if prompts is None or not (prompts / "prompts.json").is_file():
+        return None
+    expected = [p["name"] for p in json.loads((prompts / "prompts.json").read_text())["prompts"]]
+    report = check(video_dir / "images", expected, "16:9", probe=False)
+    return not report.missing, f"{len(report.present)}/{len(expected)} images"
+
+
 def video_status(ws: Workspace, channel: str, video: str) -> tuple[list[str], str | None]:
     """Report lines and the next action for a video, or None when every step is done."""
     video_dir = ws.video(channel, video)
@@ -366,6 +386,8 @@ def video_status(ws: Workspace, channel: str, video: str) -> tuple[list[str], st
     next_action: str | None = None
     for step in VIDEO_STEPS:
         done, desc = step_state(video_dir, step)
+        if step.name == "images" and (counted := images_state(video_dir)):
+            done, desc = counted
         lines.append(f"  {step.name:<10} {desc}")
         if not done and next_action is None:
             if step.kit_file in todo:
