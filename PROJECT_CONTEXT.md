@@ -135,6 +135,7 @@ Creator renders in Kdenlive ──► publish step: title, description, tags
 - Channel kit: consistency across videos lives in a versioned, per-channel kit that every per-video step reads, not in each video's own files; otherwise video 2 starts over and drifts from video 1. (2026-11-22)
 - Editor-neutral timeline: the CLI builds `timeline.json` first and exports it to an editor, so supporting a second editor means a new exporter, not a new pipeline. Kdenlive is first because the creator works on Linux. (2026-11-22)
 - Real timings from the audio: subtitles and cuts follow the narration, not the script's estimates. Local alignment (faster-whisper, optional) keeps it free and offline; per-chapter audio with character-count distribution is the dependency-free fallback. (2026-11-22)
+- ffmpeg decodes the audio for faster-whisper (16 kHz mono samples), not faster-whisper's own PyAV reader: faster-whisper 1.2.1 calls `av.open(..., metadata_errors=)`, which PyAV 19 rejects. One decoder for every step, and immune to that drift. (2026-11-22)
 - No studio app: the product is skills plus a small CLI working on plain files; no GUI. (2026-11-22)
 - Python CLI with uv: the editor step is file generation and media probing, which Python handles well, and uv gives a locked, reproducible environment. (2026-11-22)
 

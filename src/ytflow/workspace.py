@@ -75,7 +75,12 @@ VIDEO_STEPS = (
         done_file="voiceover.json",
     ),
     Step("audio", "voiceover", "generate the narration in ElevenLabs and save it in audio/", "input"),
-    Step("timing", "edit", "align the narration audio to the script"),
+    Step(
+        "timing",
+        "voiceover",
+        "align the narration to the script: ytflow align",
+        done_file="timing.json",
+    ),
     Step("timeline", "edit", "build timeline.json and export the Kdenlive project", kit_file="edit-preset.toml"),
     Step("publish", "publish", "write the title, description and tags", kit_file="publish.md"),
 )
