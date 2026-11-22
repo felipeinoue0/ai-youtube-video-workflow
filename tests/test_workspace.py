@@ -171,8 +171,8 @@ def test_status_walks_the_creator_through_the_steps(tmp_path: Path) -> None:
     (timing / "timing.json").write_text("{}")
     assert next_line(ok(tmp_path, "status", "c", "v")) == "next: fill edit-preset.toml in kit v1 (skill: edit)"
     fill(kit, "edit-preset.toml")
-    for step in ("timeline", "publish"):
-        (Path(ok(tmp_path, "version", "new", str(video / step))) / "out.txt").write_text("x")
+    (Path(ok(tmp_path, "version", "new", str(video / "timeline"))) / "timeline.json").write_text("{}")
+    (Path(ok(tmp_path, "version", "new", str(video / "publish"))) / "out.txt").write_text("x")
     assert next_line(ok(tmp_path, "status", "c", "v")).startswith("next: done")
 
 

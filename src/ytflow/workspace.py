@@ -81,7 +81,13 @@ VIDEO_STEPS = (
         "align the narration to the script: ytflow align",
         done_file="timing.json",
     ),
-    Step("timeline", "edit", "build timeline.json and export the Kdenlive project", kit_file="edit-preset.toml"),
+    Step(
+        "timeline",
+        "edit",
+        "build the edit: ytflow timeline build, then preview and export it",
+        kit_file="edit-preset.toml",
+        done_file="timeline.json",
+    ),
     Step("publish", "publish", "write the title, description and tags", kit_file="publish.md"),
 )
 
@@ -155,21 +161,27 @@ the voiceover skill during the first video.
 {TODO_MARK}: why this voice (gender, age, accent, energy) and voices tried
 {TODO_MARK}: delivery notes (pace, emphasis, what to re-generate)
 """,
-    "edit-preset.toml": f"""# The edit every video gets. Read by `ytflow timeline build`.
-# {TODO_MARK}: review these defaults, then delete this line.
+    "edit-preset.toml": f"""# The edit every video gets. Read by `ytflow timeline build`;
+# `ytflow kit check` validates it.
+# {TODO_MARK}: review these defaults with the edit skill, then delete this line.
 
 [subtitles]
 font = "Noto Sans"
-size = 48
+size = 48                 # pixels at the video height below
 color = "#ffffff"
-box_color = "#000000"
-box_opacity = 0.6
+box_color = "#000000"     # the box behind the text
+box_opacity = 0.6         # 0 transparent – 1 solid
 max_chars_per_line = 42
+max_lines = 2
+margin_bottom = 60
+min_seconds = 1.0         # shortest time a subtitle stays on screen
 
 [chapters]
 position = "top-left"
 font = "Noto Sans"
 size = 40
+seconds = 5.0             # how long the chapter title shows
+margin = 48
 
 [video]
 width = 1920
@@ -178,13 +190,19 @@ fps = 30
 fade_in_seconds = 1.0
 fade_out_seconds = 1.5
 
+[audio]
+lead_seconds = 0.5        # image before the narration starts
+tail_seconds = 1.5        # image after it ends
+
 [transitions]
+# the first type is the calm one: every chapter change and every other cut
 types = ["dissolve", "wipe-left", "wipe-right", "slide-up"]
 seconds = 0.6
 
 [camera]
 moves = ["zoom-in", "zoom-out", "pan-left", "pan-right"]
-max_zoom = 1.12
+max_zoom = 1.12           # never more than 12% in
+zoom_per_second = 0.03    # slow: a 4 s image moves 12%
 """,
     "publish.md": f"""# Publish template
 

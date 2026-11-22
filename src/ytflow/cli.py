@@ -14,11 +14,14 @@ from ytflow.align import DEFAULT_MODEL, METHODS, MIN_MATCHED, AlignError, choose
 from ytflow.align import align as align_narration
 from ytflow.align import write as write_timing
 from ytflow.branding import check_branding
-from ytflow.images import apply_plan, import_plan
+from ytflow.images import apply_plan, image_files, import_plan
 from ytflow.images import check as check_images
 from ytflow.images import suggestion as image_suggestion
+from ytflow.kdenlive import export as export_kdenlive
 from ytflow.kit import KitError, check_kit, front_matter
 from ytflow.media import MediaError, duration
+from ytflow.preview import FILE as PREVIEW_FILE
+from ytflow.preview import render as render_preview
 from ytflow.prompts import COMPILED as PROMPTS_COMPILED
 from ytflow.prompts import SOURCE as PROMPTS_SOURCE
 from ytflow.prompts import TEXT as PROMPTS_TEXT
@@ -32,6 +35,11 @@ from ytflow.script import COMPILED as SCRIPT_COMPILED
 from ytflow.script import SOURCE as SCRIPT_SOURCE
 from ytflow.script import build as build_script
 from ytflow.script import youtube_chapter_warnings
+from ytflow.subtitles import write as write_subtitles
+from ytflow.timeline import COMPILED as TIMELINE_COMPILED
+from ytflow.timeline import TimelineError, load_preset
+from ytflow.timeline import build as build_timeline
+from ytflow.timeline import write as write_timeline
 from ytflow.voiceover import CHAPTERS_DIR, GENERATION_CHARACTERS, check_audio, duration_warning, same_export
 from ytflow.voiceover import COMPILED as VOICEOVER_COMPILED
 from ytflow.voiceover import TEXT as VOICEOVER_TEXT
@@ -176,6 +184,27 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--model", default=DEFAULT_MODEL, help=f"faster-whisper model (default: {DEFAULT_MODEL})")
     p.add_argument("--language", help="narration language for faster-whisper, e.g. en (default: detect)")
     p.set_defaults(func=cmd_align)
+
+    timeline = sub.add_parser("timeline", help="the edit").add_subparsers(dest="action", required=True)
+    p = timeline.add_parser("build", help="build timeline.json and subtitles.ass from the timing, images and preset")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.set_defaults(func=cmd_timeline_build)
+    p = timeline.add_parser("preview", help="render a draft of the timeline with ffmpeg (preview.mp4)")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.add_argument("--version", dest="step_version", help="timeline version (default: latest)")
+    p.add_argument("--scale", type=float, default=0.5, help="output size as a share of the video size (default 0.5)")
+    p.set_defaults(func=cmd_timeline_preview)
+
+    export = sub.add_parser("export", help="write the timeline as an editor project").add_subparsers(
+        dest="action", required=True
+    )
+    p = export.add_parser("kdenlive", help="write <video>.kdenlive next to timeline.json")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.add_argument("--version", dest="step_version", help="timeline version (default: latest)")
+    p.set_defaults(func=cmd_export_kdenlive)
 
     p = sub.add_parser("status", help="show where a channel or video is and what to do next")
     p.add_argument("channel")
@@ -582,6 +611,83 @@ def cmd_align(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_timeline_build(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    kit, _ = ready_kit_file(ws, args.channel, args.video, "edit-preset.toml")
+    preset = load_preset(kit / "edit-preset.toml")
+    video_dir = ws.video(args.channel, args.video)
+    timing_dir = version_dir(video_dir / "timing", None)
+    if not (timing_dir / TIMING_COMPILED).is_file():
+        raise WorkspaceError(f"no {TIMING_COMPILED} in {timing_dir} — run: ytflow align {args.channel} {args.video}")
+    timing = json.loads((timing_dir / TIMING_COMPILED).read_text())
+    images: dict[str, str] = {}
+    for path in image_files(video_dir / "images"):
+        if path.stem in images:
+            raise WorkspaceError(f"{path.stem} is saved twice in images/ — run: ytflow images check")
+        images[path.stem] = f"images/{path.name}"
+    sources = {
+        "script_version": timing["script_version"],
+        "voiceover_version": timing["voiceover_version"],
+        "timing_version": timing_dir.name,
+        "kit_version": kit.name,
+    }
+    result = build_timeline(timing, images, preset, sources)
+    version = new_version(video_dir / "timeline")
+    path = write_timeline(version, result)
+    write_subtitles(version, result.data)
+    print(path)
+    data = result.data
+    kinds: dict[str, int] = {}
+    for transition in data["transitions"]:
+        kinds[transition["type"]] = kinds.get(transition["type"], 0) + 1
+    mix = ", ".join(f"{n} {kind}" for kind, n in sorted(kinds.items(), key=lambda item: -item[1]))
+    print(
+        f"timeline {version.name}: {len(data['clips'])} clips, {clock(data['video']['duration'])}, "
+        f"{len(data['chapters'])} chapter titles; transitions: {mix or 'none'}"
+    )
+    for warning in result.warnings:
+        print(f"warning: {warning}")
+    latest_script = latest_version(video_dir / "script")
+    if latest_script is not None and latest_script.name != timing["script_version"]:
+        print(f"warning: timed from script {timing['script_version']}, but {latest_script.name} exists")
+    return 0
+
+
+def built_timeline(ws: Workspace, channel: str, video: str, version: str | None) -> tuple[Path, dict]:
+    video_dir = ws.video(channel, video)
+    if version is None and latest_version(video_dir / "timeline") is None:
+        raise WorkspaceError(f"no timeline yet — run: ytflow timeline build {channel} {video}")
+    directory = version_dir(video_dir / "timeline", version)
+    path = directory / TIMELINE_COMPILED
+    if not path.is_file():
+        raise WorkspaceError(f"no {TIMELINE_COMPILED} in {directory} — run: ytflow timeline build {channel} {video}")
+    return directory, json.loads(path.read_text())
+
+
+def cmd_export_kdenlive(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    version, data = built_timeline(ws, args.channel, args.video, args.step_version)
+    subtitles = version / "subtitles.ass"
+    if not subtitles.is_file():
+        raise WorkspaceError(f"no subtitles.ass in {version} — run: ytflow timeline build {args.channel} {args.video}")
+    project = export_kdenlive(data, version / f"{args.video}.kdenlive", ws.video(args.channel, args.video), subtitles)
+    print(project)
+    return 0
+
+
+def cmd_timeline_preview(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    video_dir = ws.video(args.channel, args.video)
+    if not 0.1 <= args.scale <= 1:
+        raise WorkspaceError("--scale must be between 0.1 and 1")
+    version, data = built_timeline(ws, args.channel, args.video, args.step_version)
+    output = version / PREVIEW_FILE
+    print(f"rendering {clock(data['video']['duration'])} at {args.scale:g}× size…", file=sys.stderr)
+    render_preview(data, video_dir, version / "subtitles.ass", output, args.scale)
+    print(output)
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     ws = workspace(args)
     lines, next_action = channel_status(ws, args.channel)
@@ -602,6 +708,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         return args.func(args)
-    except (WorkspaceError, MediaError, KitError, AlignError) as err:
+    except (WorkspaceError, MediaError, KitError, AlignError, TimelineError) as err:
         print(f"ytflow: error: {err}", file=sys.stderr)
         return 1
