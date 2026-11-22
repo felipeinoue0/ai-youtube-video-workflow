@@ -1,0 +1,91 @@
+# Dev sandbox compose file — the demo/portfolio entry point.
+#
+# `docker compose up` works on this file alone, on any OS, with **no host-side
+# prerequisites beyond Docker itself**: no Make, no Python, no opencode, no gh.
+# Every host-derived value below has an inline default, so nothing has to be
+# exported first.
+#
+# Host-only mounts (the gh/opencode config dirs, `~/.gitconfig`) deliberately do
+# NOT live here. Compose treats a missing bind-mount source as fatal on Windows
+# and creates a root-owned directory for it on Linux, so a single absent
+# `~/.config/gh` would break the one command this file exists to support. They
+# live in `docker-compose.agent.yml`, merged only by the developer entry points
+# and only when the host can actually provide them (#91).
+
+name: ai-youtube-video-workflow
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        HOST_UID: ${HOST_UID:-1000}
+        HOST_GID: ${HOST_GID:-1000}
+    # Host identity defaults to UID/GID 1000, which is correct for Docker
+    # Desktop (macOS/Windows virtualise bind-mount ownership). A Linux user
+    # whose uid differs overrides it: `HOST_UID="$(id -u)" docker compose up`.
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    extra_hosts:
+      # Docker Desktop injects this name itself; plain Linux Docker does not,
+      # so it is declared for both.
+      - "host.docker.internal:host-gateway"
+    # Invoked through bash rather than executed directly: a Windows checkout
+    # does not preserve the executable bit through a bind mount, so running the
+    # path itself fails with "Permission denied". This also makes the LF policy
+    # in .gitattributes a redundancy rather than a hard requirement here.
+    command: ["/bin/bash", "/workspace/scripts/dev-entrypoint.sh"]
+    # No `ports:` — this project is a CLI and serves nothing. If a preview
+    # server is ever added, publish it as "${HOST_PORT:-8080}:8080" so two
+    # sandboxes can pick different host ports, and set HOST_PORT in the Makefile.
+    environment:
+      - GH_TOKEN=${GH_TOKEN:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - HOME=/home/devuser
+      - UV_PROJECT_ENVIRONMENT=/home/devuser/.venv
+      # Forwarded so the entrypoint can probe ownership and the compose
+      # interpolation above has something to fall back to.
+      - HOST_UID=${HOST_UID:-1000}
+      - HOST_GID=${HOST_GID:-1000}
+    volumes:
+      # The workspace bind mount is the only mount in this file: it exists on
+      # every platform and needs no host setup.
+      - .:/workspace:cached
+      # `.env` holds the project's keys. Inside the sandbox it is this empty
+      # file, read-only, so no agent can read or change them in any mode —
+      # the only guard that covers Codex, which has no file deny list. The
+      # entry points create `.env` first (an empty one when the project has
+      # none yet), and `check-secrets` refuses to start while any other secret
+      # file is in the checkout, since those cannot be masked by name.
+      - ./scripts/masked-env:/workspace/.env:ro
+      # The sandbox's own virtualenv (UV_PROJECT_ENVIRONMENT points uv at it).
+      # Outside the bind mount on purpose: a `.venv` inside the workspace would
+      # be the host's, and a volume nested in the bind mount makes Docker create
+      # a root-owned `.venv` on the host of a fresh clone.
+      # uv's download cache, so a re-created container does not re-download.
+      # The mount points exist in the image, owned by the runtime user: Docker
+      # creates a destination it does not find as root, and the container runs
+      # as ${HOST_UID} (see the "mount points" block in the Dockerfile).
+      - venv:/home/devuser/.venv
+      - uvcache:/home/devuser/.cache/uv
+      #
+      # The AI agents' own state — the login each one asks for on first run (an
+      # API key you paste, or an account you sign in with), plus its sessions.
+      # The agent writes it here itself; nothing is mounted from the host and no
+      # credential passes through this file. Named volumes outlive the
+      # container, so `dev-up` (which re-creates it), `dev-restart` and
+      # `dev-build` keep you signed in. Only `make reset` (`down --volumes`)
+      # wipes them. Compose prefixes the names with the project name, so every
+      # project keeps its own logins.
+      - opencode-data:/home/devuser/.local/share/opencode
+      - claude-config:/home/devuser/.claude
+      - codex-home:/home/devuser/.codex
+    tty: true
+    stdin_open: true
+
+volumes:
+  opencode-data:
+  claude-config:
+  codex-home:
+  venv:
+  uvcache:

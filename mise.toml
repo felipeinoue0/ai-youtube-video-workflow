@@ -1,0 +1,7 @@
+# mise.toml — single source of truth for the project toolchain (host + dev image).
+# The Dockerfile pins the same uv and gh versions; bump them together.
+
+[tools]
+python = "3.12"
+uv = "0.12.9"
+gh = "2.102.0"
