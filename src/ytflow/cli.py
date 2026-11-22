@@ -10,17 +10,21 @@ from pathlib import Path
 
 from ytflow import __version__
 from ytflow.branding import check_branding
-from ytflow.kit import KitError, check_kit
+from ytflow.kit import KitError, check_kit, front_matter
 from ytflow.media import MediaError
 from ytflow.references import as_dict, measure, recommend, reference_files
+from ytflow.script import COMPILED as SCRIPT_COMPILED
+from ytflow.script import SOURCE as SCRIPT_SOURCE
+from ytflow.script import build as build_script
+from ytflow.script import youtube_chapter_warnings
 from ytflow.workspace import (
     KIT_TEMPLATES,
-    VERSION_RE,
     Workspace,
     WorkspaceError,
     channel_status,
     latest_version,
     new_version,
+    version_dir,
     video_status,
 )
 
@@ -91,6 +95,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("channel")
     p.add_argument("--json", action="store_true", help="print JSON instead of a report")
     p.set_defaults(func=cmd_references_stats)
+
+    script = sub.add_parser("script", help="script step").add_subparsers(dest="action", required=True)
+    p = script.add_parser("build", help="validate script.md against the kit and write script.json")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.add_argument("--version", dest="step_version", help="script version, e.g. v2 (default: latest)")
+    p.set_defaults(func=cmd_script_build)
 
     p = sub.add_parser("status", help="show where a channel or video is and what to do next")
     p.add_argument("channel")
@@ -206,20 +217,56 @@ def cmd_version_latest(args: argparse.Namespace) -> int:
 
 
 def cmd_branding_check(args: argparse.Namespace) -> int:
-    step_dir = workspace(args).channel(args.channel) / "branding"
-    if args.step_version:
-        version_dir = step_dir / args.step_version
-        if not VERSION_RE.match(args.step_version) or not version_dir.is_dir():
-            raise WorkspaceError(f"no branding version {args.step_version!r}")
-    else:
-        version_dir = latest_version(step_dir)
-        if version_dir is None:
-            raise WorkspaceError(f"no branding version yet — run: ytflow version new {step_dir}")
-    problems = check_branding(version_dir)
+    version = version_dir(workspace(args).channel(args.channel) / "branding", args.step_version)
+    problems = check_branding(version)
     for problem in problems:
         print(f"- {problem}")
-    print(f"branding {version_dir.name}: " + (f"{len(problems)} problem(s)" if problems else "ok"))
+    print(f"branding {version.name}: " + (f"{len(problems)} problem(s)" if problems else "ok"))
     return 1 if problems else 0
+
+
+def clock(seconds: float) -> str:
+    """YouTube timestamp: m:ss, or h:mm:ss from an hour."""
+    total = int(seconds)
+    h, m, s = total // 3600, total % 3600 // 60, total % 60
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def cmd_script_build(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    kit = ws.video_kit(args.channel, args.video)
+    kit_problems = check_kit(kit, ("style-guide.md",))["style-guide.md"]
+    if kit_problems:
+        raise WorkspaceError(
+            f"style-guide.md in kit {kit.name} is not ready ({'; '.join(kit_problems)}) — "
+            f"run: ytflow kit check {args.channel} {args.video}"
+        )
+    style = front_matter(kit / "style-guide.md")
+    version = version_dir(ws.video(args.channel, args.video) / "script", args.step_version)
+    source = version / SCRIPT_SOURCE
+    if not source.is_file():
+        raise WorkspaceError(f"no {SCRIPT_SOURCE} in {version}")
+    script, problems = build_script(source.read_text(), style["words_per_minute"], style["phrase_words_max"])
+    if script is None:
+        for problem in problems:
+            print(f"- {problem}")
+        print(f"script {version.name}: {len(problems)} problem(s); {SCRIPT_COMPILED} not written")
+        return 1
+    (version / SCRIPT_COMPILED).write_text(script.to_json())
+    print(f"{script.title}")
+    for chapter in script.chapters:
+        count = sum(1 for p in script.phrases if p.chapter == chapter.index)
+        print(f"  {clock(chapter.start)} {chapter.title} ({count} phrase{'s' if count != 1 else ''})")
+    target = style["phrase_words_target"]
+    average = sum(p.words for p in script.phrases) / len(script.phrases)
+    print(
+        f"{len(script.phrases)} phrases, {average:.1f} words on average (kit target {target}), "
+        f"about {clock(script.duration)} at {style['words_per_minute']} wpm"
+    )
+    for warning in youtube_chapter_warnings(script):
+        print(f"warning: {warning}")
+    print(f"script {version.name}: ok — wrote {version / SCRIPT_COMPILED}")
+    return 0
 
 
 def cmd_status(args: argparse.Namespace) -> int:
