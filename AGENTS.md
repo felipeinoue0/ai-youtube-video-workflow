@@ -26,20 +26,25 @@ The creator runs one guided workflow per channel and per video. Each step is an
 agent skill that writes a **versioned** output the creator reviews and iterates
 on: branding (Canva guidance, channel description and tags) → style guide from
 reference transcripts → timed script → Google Flow image prompts named
-`<enumerate_id>_<part_of_phrase>` → ElevenLabs narration file → a Kdenlive
-project (boxed subtitles, top-left chapter titles, fade in/out, varied
-transitions, slow camera motion) → title, description and tags. The workflow
-**coordinates** the external tools; it does not call their APIs. The full step
-list is in `PROJECT_CONTEXT.md` → "The workflow".
+`<enumerate_id>_<part_of_phrase>` → ElevenLabs narration file → real timings
+aligned from the audio → an editor-neutral `timeline.json` exported to a
+Kdenlive project (boxed subtitles, top-left chapter titles, fade in/out, varied
+transitions, slow camera motion) → title, description and tags. A versioned
+**channel kit** (`channels/<channel>/kit/v<N>/`: style guide, visual anchor,
+voice, edit preset, publish template) is read by every per-video step, so
+video 2, 3, 4 stay consistent with video 1. The workflow **coordinates** the
+external tools; it does not call their APIs, and there is no studio app — only
+skills and the CLI. The full step list is in `PROJECT_CONTEXT.md` → "The
+workflow".
 
 ### Main Technology
 
 - Language: Python 3.12, managed with uv (`pyproject.toml`, `uv.lock`)
 - Interface: agent skills (`.agents/skills/`, mirrored to `.claude/skills/`) that call the `ytflow` CLI
-- Storage: local filesystem — `channels/<channel>/videos/<video>/<step>/v<N>/` (gitignored)
+- Storage: local filesystem — `channels/<channel>/kit/v<N>/` and `channels/<channel>/videos/<video>/<step>/v<N>/` (gitignored)
 - AI: the coding agent the creator runs does the writing; the code calls no LLM API
 - External tools (run by the creator): Canva, Google Flow, ElevenLabs, Kdenlive
-- Media: ffmpeg for probing durations; Kdenlive project files (MLT XML)
+- Media: ffmpeg for probing durations; faster-whisper (optional extra) for aligning narration to the script; Kdenlive project files (MLT XML)
 - Development: Docker Compose dev sandbox (`make dev-up`), or uv on the host
 
 ### Core Architecture
@@ -47,11 +52,13 @@ list is in `PROJECT_CONTEXT.md` → "The workflow".
 ```text
 Creator → agent skill (one per step) → ytflow CLI (validate, number, generate files)
   ↓
+channels/<channel>/kit/v<N>/                     (channel kit, read by every video)
 channels/<channel>/videos/<video>/<step>/v<N>/   (versioned outputs)
   ↓
 Creator runs Canva / Google Flow / ElevenLabs with those outputs
   ↓
-images + audio back in the video folder → ytflow builds the Kdenlive project
+images + audio back in the video folder → ytflow aligns timings
+  → timeline.json → exporter (Kdenlive first)
   ↓
 Creator renders in Kdenlive → publish step: title, description, tags
 ```
