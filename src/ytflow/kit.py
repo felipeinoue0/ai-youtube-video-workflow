@@ -79,9 +79,16 @@ def check_toml(path: Path) -> list[str]:
     return []
 
 
+def check_voice_file(path: Path) -> list[str]:
+    from ytflow.voiceover import check_voice
+
+    return check_voice(front_matter(path))
+
+
 CHECKS: dict[str, Callable[[Path], list[str]]] = {
     "style-guide.md": check_style_guide,
     "visual-style.md": check_visual_style,
+    "voice.md": check_voice_file,
     "edit-preset.toml": check_toml,
 }
 
