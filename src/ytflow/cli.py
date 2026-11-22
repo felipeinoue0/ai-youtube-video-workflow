@@ -14,7 +14,7 @@ from ytflow.images import apply_plan, import_plan
 from ytflow.images import check as check_images
 from ytflow.images import suggestion as image_suggestion
 from ytflow.kit import KitError, check_kit, front_matter
-from ytflow.media import MediaError
+from ytflow.media import MediaError, duration
 from ytflow.prompts import COMPILED as PROMPTS_COMPILED
 from ytflow.prompts import SOURCE as PROMPTS_SOURCE
 from ytflow.prompts import TEXT as PROMPTS_TEXT
@@ -28,6 +28,12 @@ from ytflow.script import COMPILED as SCRIPT_COMPILED
 from ytflow.script import SOURCE as SCRIPT_SOURCE
 from ytflow.script import build as build_script
 from ytflow.script import youtube_chapter_warnings
+from ytflow.voiceover import CHAPTERS_DIR, GENERATION_CHARACTERS, check_audio, duration_warning, same_export
+from ytflow.voiceover import COMPILED as VOICEOVER_COMPILED
+from ytflow.voiceover import TEXT as VOICEOVER_TEXT
+from ytflow.voiceover import build as build_narration
+from ytflow.voiceover import compiled as compiled_voiceover
+from ytflow.voiceover import write as write_voiceover
 from ytflow.workspace import (
     KIT_TEMPLATES,
     Workspace,
@@ -137,6 +143,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--from", dest="source", type=Path, required=True, help="folder with the downloaded images")
     p.add_argument("--apply", action="store_true", help="copy the files (default: only show the plan)")
     p.set_defaults(func=cmd_images_import)
+
+    voiceover = sub.add_parser("voiceover", help="narration text for ElevenLabs").add_subparsers(
+        dest="action", required=True
+    )
+    p = voiceover.add_parser("text", help="export the narration text with the kit's voice settings and spellings")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.add_argument("--script", dest="script_version", help="script version (default: latest)")
+    p.set_defaults(func=cmd_voiceover_text)
+
+    audio = sub.add_parser("audio", help="narration audio from ElevenLabs").add_subparsers(dest="action", required=True)
+    p = audio.add_parser("check", help="check audio/ against the voiceover export: files, layout, durations")
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.set_defaults(func=cmd_audio_check)
 
     p = sub.add_parser("status", help="show where a channel or video is and what to do next")
     p.add_argument("channel")
@@ -416,6 +437,80 @@ def cmd_images_import(args: argparse.Namespace) -> int:
     else:
         print(f"{len(plan)} file(s) would be copied, oldest download first — check the pairs, then add --apply")
     return 0
+
+
+def cmd_voiceover_text(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    kit, voice = ready_kit_file(ws, args.channel, args.video, "voice.md")
+    script_dir, script = built_script(ws, args.channel, args.video, args.script_version)
+    narration = build_narration(script, voice)
+    data = compiled_voiceover(narration, script, script_dir.name, kit.name, voice)
+    step_dir = ws.video(args.channel, args.video) / "voiceover"
+    latest = latest_version(step_dir)
+    if latest is not None and same_export(latest, narration, data):
+        print(latest / VOICEOVER_TEXT)
+        print(f"voiceover {latest.name} already holds this export — nothing new written", file=sys.stderr)
+        return 0
+    version = new_version(step_dir)
+    write_voiceover(version, narration, data)
+    print(version / VOICEOVER_TEXT)
+    print(
+        f"voiceover {version.name}: {data['characters']} characters, {len(narration.chapters)} chapter(s), "
+        f"about {clock(script['duration'])} from script {script_dir.name}",
+        file=sys.stderr,
+    )
+    for word, count in narration.uses.items():
+        if count == 0:
+            print(f"warning: pronunciation {word!r} never appears in this script", file=sys.stderr)
+    if data["characters"] > GENERATION_CHARACTERS:
+        print(
+            f"note: over {GENERATION_CHARACTERS} characters — generate chapter by chapter from "
+            f"{version / CHAPTERS_DIR}",
+            file=sys.stderr,
+        )
+    return 0
+
+
+def cmd_audio_check(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    video_dir = ws.video(args.channel, args.video)
+    voiceover_dir = version_dir(video_dir / "voiceover", None)
+    path = voiceover_dir / VOICEOVER_COMPILED
+    if not path.is_file():
+        raise WorkspaceError(
+            f"no {VOICEOVER_COMPILED} in {voiceover_dir} — run: ytflow voiceover text {args.channel} {args.video}"
+        )
+    export = json.loads(path.read_text())
+    chapters = {c["file"]: c for c in export["chapters"]}
+    audio_dir = video_dir / "audio"
+    report = check_audio(audio_dir, list(chapters))
+    for problem in report.problems:
+        print(f"- {problem}")
+    for name in report.missing:
+        print(f"- missing: {name}.mp3 (text: {voiceover_dir / CHAPTERS_DIR / name}.txt)")
+    for extra in report.extra:
+        print(f"warning: {extra.name} is not narration.<ext> or a chapter name — ignored")
+    if report.layout == "none":
+        print(f"audio: none in {audio_dir} — save narration.mp3, or one file per chapter named like chapters/")
+        return 1
+    total = 0.0
+    for file in report.files:
+        seconds = duration(file)
+        total += seconds
+        print(f"  {file.name:<40} {clock(seconds)}")
+        chapter = chapters.get(file.stem)
+        if chapter and (warning := duration_warning(seconds, chapter["estimated_duration"])):
+            print(f"warning: {file.name}: {warning}")
+    if report.layout == "single" or not report.missing:
+        if warning := duration_warning(total, export["estimated_duration"]):
+            print(f"warning: {warning}")
+    stale = latest_version(video_dir / "script")
+    if stale is not None and stale.name != export["script_version"]:
+        print(f"warning: exported from script {export['script_version']}, but {stale.name} exists")
+    bad = bool(report.problems or report.missing)
+    layout = "one file" if report.layout == "single" else f"{len(report.files)}/{len(chapters)} chapter files"
+    print(f"audio: {layout}, {clock(total)} — {'fix the problems above' if bad else 'ok'}")
+    return 1 if bad else 0
 
 
 def cmd_status(args: argparse.Namespace) -> int:

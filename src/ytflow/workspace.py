@@ -67,7 +67,13 @@ VIDEO_STEPS = (
     Step(
         "images", "image-prompts", "generate the images in Google Flow and save them under their prompt names", "input"
     ),
-    Step("voiceover", "voiceover", "export the narration text for ElevenLabs", kit_file="voice.md"),
+    Step(
+        "voiceover",
+        "voiceover",
+        "export the narration text for ElevenLabs: ytflow voiceover text",
+        kit_file="voice.md",
+        done_file="voiceover.json",
+    ),
     Step("audio", "voiceover", "generate the narration in ElevenLabs and save it in audio/", "input"),
     Step("timing", "edit", "align the narration audio to the script"),
     Step("timeline", "edit", "build timeline.json and export the Kdenlive project", kit_file="edit-preset.toml"),
@@ -121,13 +127,28 @@ same channel.
 {TODO_MARK}: aspect ratio (16:9 for long-form)
 {TODO_MARK}: what to avoid
 """,
-    "voice.md": f"""# Voice
+    "voice.md": f"""+++
+# Read by `ytflow voiceover text`; `ytflow kit check` validates it.
+voice = ""                        # ElevenLabs voice name
+voice_id = ""                     # its voice id, to find the same voice again
+model = "eleven_multilingual_v2"
+stability = 0.5                   # 0–1
+similarity = 0.75                 # 0–1
+style = 0.0                       # 0–1
+speed = 1.0                       # 0.7–1.2
+chapter_break = 1.0               # seconds of pause between chapters (0 = none)
 
-The ElevenLabs voice and settings this channel uses for every video.
+[pronunciations]                  # word as written = spelling the voice says right
+# "Nero" = "Neer-oh"
++++
 
-{TODO_MARK}: voice name
-{TODO_MARK}: model and settings (stability, similarity, style, speed)
-{TODO_MARK}: pronunciation notes
+# Voice
+
+The ElevenLabs voice and settings this channel uses for every video. Filled by
+the voiceover skill during the first video.
+
+{TODO_MARK}: why this voice (gender, age, accent, energy) and voices tried
+{TODO_MARK}: delivery notes (pace, emphasis, what to re-generate)
 """,
     "edit-preset.toml": f"""# The edit every video gets. Read by `ytflow timeline build`.
 # {TODO_MARK}: review these defaults, then delete this line.
@@ -377,6 +398,25 @@ def images_state(video_dir: Path) -> tuple[bool, str] | None:
     return not report.missing, f"{len(report.present)}/{len(expected)} images"
 
 
+def audio_state(video_dir: Path) -> tuple[bool, str] | None:
+    """Narration audio against the latest voiceover export, or None before the export exists."""
+    import json
+
+    from ytflow.voiceover import COMPILED, check_audio
+
+    voiceover = latest_version(video_dir / "voiceover")
+    if voiceover is None or not (voiceover / COMPILED).is_file():
+        return None
+    chapters = [c["file"] for c in json.loads((voiceover / COMPILED).read_text())["chapters"]]
+    report = check_audio(video_dir / "audio", chapters)
+    if report.layout == "single":
+        return not report.problems, report.files[0].name
+    if report.layout == "chapters":
+        done = not report.missing and not report.problems
+        return done, f"{len(report.files)}/{len(chapters)} chapter files"
+    return False, "empty"
+
+
 def video_status(ws: Workspace, channel: str, video: str) -> tuple[list[str], str | None]:
     """Report lines and the next action for a video, or None when every step is done."""
     video_dir = ws.video(channel, video)
@@ -387,6 +427,8 @@ def video_status(ws: Workspace, channel: str, video: str) -> tuple[list[str], st
     for step in VIDEO_STEPS:
         done, desc = step_state(video_dir, step)
         if step.name == "images" and (counted := images_state(video_dir)):
+            done, desc = counted
+        if step.name == "audio" and (counted := audio_state(video_dir)):
             done, desc = counted
         lines.append(f"  {step.name:<10} {desc}")
         if not done and next_action is None:

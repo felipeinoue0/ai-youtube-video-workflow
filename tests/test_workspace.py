@@ -156,9 +156,16 @@ def test_status_walks_the_creator_through_the_steps(tmp_path: Path) -> None:
     fill(kit, "voice.md")
     assert "skill: voiceover" in next_line(ok(tmp_path, "status", "c", "v"))
 
-    for step in ("voiceover", "timing"):
-        (Path(ok(tmp_path, "version", "new", str(video / step))) / "out.txt").write_text("x")
-    (video / "audio" / "narration.mp3").write_bytes(b"")
+    voiceover = Path(ok(tmp_path, "version", "new", str(video / "voiceover")))
+    (voiceover / "narration.txt").write_text("x")
+    out = ok(tmp_path, "status", "c", "v")
+    assert "v1 (no voiceover.json yet)" in out and "ytflow voiceover text" in next_line(out)
+    (voiceover / "voiceover.json").write_text('{"chapters": [{"file": "01_intro"}, {"file": "02_end"}]}')
+    (video / "audio" / "01_intro.mp3").write_bytes(b"")
+    out = ok(tmp_path, "status", "c", "v")
+    assert "1/2 chapter files" in out and "skill: voiceover" in next_line(out)
+    (video / "audio" / "02_end.mp3").write_bytes(b"")
+    (Path(ok(tmp_path, "version", "new", str(video / "timing"))) / "out.txt").write_text("x")
     assert next_line(ok(tmp_path, "status", "c", "v")) == "next: fill edit-preset.toml in kit v1 (skill: edit)"
     fill(kit, "edit-preset.toml")
     for step in ("timeline", "publish"):

@@ -46,3 +46,20 @@ def image_size(path: Path) -> tuple[int, int]:
         return width, height
     except (json.JSONDecodeError, KeyError, IndexError, ValueError):
         raise MediaError(f"cannot read image {path}: {result.stderr.strip() or 'not an image'}") from None
+
+
+def duration(path: Path) -> float:
+    """Length of an audio or video file in seconds."""
+    result = subprocess.run(
+        [ffprobe(), "-v", "error", "-show_entries", "format=duration", "-of", "json", path],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    try:
+        seconds = float(json.loads(result.stdout)["format"]["duration"])
+        if seconds <= 0:
+            raise ValueError
+        return seconds
+    except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+        raise MediaError(f"cannot read audio {path}: {result.stderr.strip() or 'no duration'}") from None
