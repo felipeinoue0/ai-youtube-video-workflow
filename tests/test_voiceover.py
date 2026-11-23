@@ -149,7 +149,9 @@ def test_voiceover_text_writes_a_version_only_when_something_changed(tmp_path: P
     assert json.loads((v2 / "voiceover.json").read_text())["script_version"] == "v2"
 
 
-@pytest.mark.parametrize(("model", "pause"), [("eleven_v3", "1.0"), ("eleven_multilingual_v2", "0")])
+@pytest.mark.parametrize(
+    ("model", "pause"), [("eleven_v3", "1.0"), ("eleven_v4", "1.0"), ("eleven_multilingual_v2", "0")]
+)
 def test_no_break_tag_when_the_model_ignores_it_or_no_pause(tmp_path: Path, model: str, pause: str) -> None:
     video = setup(tmp_path, model, pause)
     ok(tmp_path, "voiceover", "text", "c", "v")
