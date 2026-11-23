@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/Kdenlive-export-527EB2?logo=kdenlive&logoColor=white" alt="Kdenlive">
   <img src="https://img.shields.io/badge/agents-Claude%20Code%20%7C%20opencode%20%7C%20Codex-D97757" alt="Agents">
   <img src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20WSL2%20%7C%20Windows-4c8bf5" alt="Platforms">
-  <a href="https://github.com/fiwon123/ai-youtube-video-workflow/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-proprietary-555" alt="License"></a>
+  <a href="https://github.com/fiwon123/ai-youtube-video-workflow/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-yellow" alt="License"></a>
 </p>
 
 <p><a href="#-quick-start">🚀 Quick start</a> · <a href="#-how-to-use">🎬 How to use</a> · <a href="#-where-your-files-are">📁 Your files</a> · <a href="#-common-questions">💬 FAQ</a> · <a href="docs/wiki/Walkthrough.md">📖 Walkthrough</a></p>
@@ -62,6 +62,17 @@ the editing setup.
 
 > It does **not** call those tools for you and needs **no API key**. Nothing
 > you create leaves your computer: everything stays in the `channels/` folder.
+
+> [!TIP]
+> **You don't need Kdenlive or Docker to use this.** The project is built for
+> Linux and a Kdenlive edit for now, because that is what its author uses. But
+> the workflow itself is a step-by-step guide from an empty channel to a
+> published video — branding, style, script, images, narration, edit, publish —
+> and you can follow it with whatever editor, OS and tools you prefer. The
+> skills in [`.agents/skills/`](.agents/skills/) and the
+> [walkthrough](docs/wiki/Walkthrough.md) describe each step in plain words.
+> It is [MIT-licensed](LICENSE): reuse any part of it to build your own
+> workflow for your own needs.
 
 ## 🚀 Quick start
 
@@ -322,4 +333,4 @@ make reset       # stops the sandbox and deletes its volumes, agent logins inclu
 
 ## 📜 License
 
-Proprietary, all rights reserved. See [LICENSE](LICENSE).
+[MIT](LICENSE): use it, change it, and reuse any part of it for your own projects.
