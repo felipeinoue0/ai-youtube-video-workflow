@@ -3,7 +3,7 @@
 **AI agent skills that guide a creator from channel branding to a published YouTube video, one reviewable step at a time.**
 
 [![CI](https://github.com/fiwon123/ai-youtube-video-workflow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fiwon123/ai-youtube-video-workflow/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-proprietary-blue)](https://github.com/fiwon123/ai-youtube-video-workflow/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-yellow)](https://github.com/fiwon123/ai-youtube-video-workflow/blob/main/LICENSE)
 
 ---
 
