@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="300" viewBox="0 0 1280 300" role="img" aria-label="The seven steps: Branding, Style, Script, Images, Narration, Edit, Publish">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0f1428"/>
+      <stop offset="1" stop-color="#1b1230"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff4d6d"/>
+      <stop offset="1" stop-color="#ffb347"/>
+    </linearGradient>
+    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c5cff"/>
+      <stop offset="1" stop-color="#4fb3ff"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#8b93b8"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="300" rx="24" fill="url(#bg)"/>
+
+  <g font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, 'DejaVu Sans', sans-serif" fill="#ffffff">
+    <!-- group labels -->
+    <text x="62" y="52" font-size="15" font-weight="700" fill="#a89bff" letter-spacing="2">ONCE PER CHANNEL</text>
+    <text x="398" y="52" font-size="15" font-weight="700" fill="#ff8a9e" letter-spacing="2">FOR EVERY VIDEO</text>
+    <line x1="62" y1="64" x2="330" y2="64" stroke="#a89bff" stroke-opacity="0.5" stroke-width="2"/>
+    <line x1="398" y1="64" x2="1218" y2="64" stroke="#ff8a9e" stroke-opacity="0.5" stroke-width="2"/>
+
+    <!-- arrows -->
+    <g stroke="#8b93b8" stroke-width="2.5" marker-end="url(#arrow)">
+      <line x1="194" y1="150" x2="216" y2="150"/>
+      <line x1="362" y1="150" x2="384" y2="150"/>
+      <line x1="530" y1="150" x2="552" y2="150"/>
+      <line x1="698" y1="150" x2="720" y2="150"/>
+      <line x1="866" y1="150" x2="888" y2="150"/>
+      <line x1="1034" y1="150" x2="1056" y2="150"/>
+    </g>
+
+    <!-- step cards: x = 62 + i*168, width 132 -->
+    <g>
+      <rect x="62" y="88" width="132" height="124" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#a89bff" stroke-opacity="0.5"/>
+      <circle cx="128" cy="126" r="22" fill="url(#violet)"/>
+      <text x="128" y="134" font-size="22" font-weight="700" text-anchor="middle">1</text>
+      <text x="128" y="178" font-size="19" font-weight="700" text-anchor="middle">Branding</text>
+      <text x="128" y="200" font-size="13" fill="#b7bdd9" text-anchor="middle">Canva</text>
+    </g>
+    <g>
+      <rect x="230" y="88" width="132" height="124" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#a89bff" stroke-opacity="0.5"/>
+      <circle cx="296" cy="126" r="22" fill="url(#violet)"/>
+      <text x="296" y="134" font-size="22" font-weight="700" text-anchor="middle">2</text>
+      <text x="296" y="178" font-size="19" font-weight="700" text-anchor="middle">Style</text>
+      <text x="296" y="200" font-size="13" fill="#b7bdd9" text-anchor="middle">reference videos</text>
+    </g>
+    <g>
+      <rect x="398" y="88" width="132" height="124" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ff8a9e" stroke-opacity="0.5"/>
+      <circle cx="464" cy="126" r="22" fill="url(#accent)"/>
+      <text x="464" y="134" font-size="22" font-weight="700" text-anchor="middle">3</text>
+      <text x="464" y="178" font-size="19" font-weight="700" text-anchor="middle">Script</text>
+      <text x="464" y="200" font-size="13" fill="#b7bdd9" text-anchor="middle">AI agent</text>
+    </g>
+    <g>
+      <rect x="566" y="88" width="132" height="124" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ff8a9e" stroke-opacity="0.5"/>
+      <circle cx="632" cy="126" r="22" fill="url(#accent)"/>
+      <text x="632" y="134" font-size="22" font-weight="700" text-anchor="middle">4</text>
+      <text x="632" y="178" font-size="19" font-weight="700" text-anchor="middle">Images</text>
+      <text x="632" y="200" font-size="13" fill="#b7bdd9" text-anchor="middle">Google Flow</text>
+    </g>
+    <g>
+      <rect x="734" y="88" width="132" height="124" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ff8a9e" stroke-opacity="0.5"/>
+      <circle cx="800" cy="126" r="22" fill="url(#accent)"/>
+      <text x="800" y="134" font-size="22" font-weight="700" text-anchor="middle">5</text>
+      <text x="800" y="178" font-size="19" font-weight="700" text-anchor="middle">Narration</text>
+      <text x="800" y="200" font-size="13" fill="#b7bdd9" text-anchor="middle">ElevenLabs</text>
+    </g>
+    <g>
+      <rect x="902" y="88" width="132" height="124" rx="18" fill="#ffffff" fill-opacity="0.06" stroke="#ff8a9e" stroke-opacity="0.5"/>
+      <circle cx="968" cy="126" r="22" fill="url(#accent)"/>
+      <text x="968" y="134" font-size="22" font-weight="700" text-anchor="middle">6</text>
+      <text x="968" y="178" font-size="19" font-weight="700" text-anchor="middle">Edit</text>
+      <text x="968" y="200" font-size="13" fill="#b7bdd9" text-anchor="middle">Kdenlive</text>
+    </g>
+    <g>
+      <rect x="1070" y="88" width="148" height="124" rx="18" fill="url(#accent)" fill-opacity="0.22" stroke="#ffb347" stroke-opacity="0.8"/>
+      <circle cx="1144" cy="126" r="22" fill="url(#accent)"/>
+      <text x="1144" y="134" font-size="22" font-weight="700" text-anchor="middle">7</text>
+      <text x="1144" y="178" font-size="19" font-weight="700" text-anchor="middle">Publish</text>
+      <text x="1144" y="200" font-size="13" fill="#e8dcc8" text-anchor="middle">YouTube</text>
+    </g>
+
+    <text x="640" y="262" font-size="15" fill="#8b93b8" text-anchor="middle">Every step writes a new version (v1, v2, …) you review before moving on. The channel kit keeps video 2, 3, 4 consistent.</text>
+  </g>
+</svg>
