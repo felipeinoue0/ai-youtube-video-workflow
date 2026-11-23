@@ -44,6 +44,12 @@ Ask in one message:
 4. Points that must be included, and points to leave out.
 5. Anything for the ending: the next video, a link, a question to the viewers.
 
+Write for the **audience in the style guide**. When it is everyone, the words
+must fit anyone: young or old, any gender. In languages with gendered forms,
+prefer neutral turns ("sem ajuda" rather than "sozinho", "uma pessoa que"
+rather than "aquele amigo que"), and give examples from different ages and
+lives (a student, someone changing careers at fifty, a parent after work).
+
 ## 2. Outline first
 
 ```bash
@@ -109,8 +115,11 @@ ytflow script build <channel> <video>
   estimated length. Compare the length with the target from step 1. If it is
   off by more than ~10%, cut or add phrases, not words per phrase.
 
-The timing is an estimate from the kit's pace; the alignment step replaces it
-with the real narration times later.
+It also writes **`transcript.md`** next to `script.json`: chapter by chapter,
+every line with its start, end, duration and image name. That is the script
+the creator reads to see how long each line lasts. The times are an estimate
+from the kit's pace; the alignment step replaces them with the real narration
+times later (`ytflow package` then carries the real ones).
 
 ## 5. Review, then show
 
@@ -118,7 +127,8 @@ Go through the style guide's review checklist yourself and fix what fails.
 Then show the creator:
 
 - the script (title, chapters, phrases);
-- the chapter timestamps and the estimated length, as `ytflow` printed them;
+- the chapter timestamps and the estimated length, as `ytflow` printed them,
+  and `transcript.md` for the time of every line;
 - every `> check:` note, so they can verify it.
 
 ## 6. Iterate

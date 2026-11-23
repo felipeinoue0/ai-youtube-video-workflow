@@ -57,6 +57,11 @@ needs from the creator:
 | Video | `edit` | approval of the preview; the render from Kdenlive | `timeline.json` built, project exported |
 | Video | `publish` | the chosen title | `ytflow publish build` ok |
 
+When the script, the prompts and the narration text are ready, `ytflow
+package <channel> <video>` puts the timed script, the ElevenLabs text, the
+Flow prompts and the scene list in one folder, `package/v<N>/`: the place to
+send the creator to.
+
 `fill <file> in kit v<N> (skill: <name>)` means a channel-kit file that step
 needs is still a template: that skill fills it as part of its step.
 `voice.md` and `edit-preset.toml` are filled during the **first** video only.

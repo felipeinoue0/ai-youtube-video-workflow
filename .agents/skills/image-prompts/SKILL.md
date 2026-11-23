@@ -65,6 +65,11 @@ A scene says **what is in the picture**, in 15–45 words:
   matters: "subject on the right, open sky at the top left".
 - **Recurring elements**: copy their fixed descriptions from
   `visual-style.md` word for word.
+- **People**: follow the audience in the style guide. When it is everyone,
+  vary age and gender across the images (a young man, a woman in her sixties,
+  a middle-aged father…), one person per image, so every viewer can see
+  themselves; do not make one gender or age the face of the whole video
+  unless the visual style names a recurring character.
 
 Never put these in a scene:
 
