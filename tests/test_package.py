@@ -139,10 +139,13 @@ def test_package_gathers_everything_in_one_folder(tmp_path: Path) -> None:
         "scenes.md",
         "script-timed.md",
     ]
-    # only the spoken lines, as the voiceover step exported them (spellings applied)
+    # only the spoken lines: spellings applied, chapters on their own paragraph, no markup at all
     narration = (package / "elevenlabs.txt").read_text()
-    assert narration == (video / "voiceover" / "v1" / "narration.txt").read_text()
-    assert narration.startswith("A I.A. não faz tudo por você.") and "##" not in narration and "|" in narration
+    assert narration == (
+        "A I.A. não faz tudo por você. Mas ela tira as desculpas do caminho | de verdade.\n\n"
+        "Publique um vídeo em sete dias.\n"
+    )
+    assert "<break" in (video / "voiceover" / "v1" / "narration.txt").read_text()  # the export keeps its pauses
     assert (package / "flow-prompts.txt").read_text() == (video / "prompts" / "v1" / "prompts.txt").read_text()
     assert (package / "script-timed.md").read_text() == (video / "script" / "v1" / "transcript.md").read_text()
 

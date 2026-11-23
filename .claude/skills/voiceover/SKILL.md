@@ -111,7 +111,8 @@ ytflow package <channel> <video>    # prints .../package/v<N>/
 ```
 
 `package/v<N>/` holds `script-timed.md` (every line with its time),
-`elevenlabs.txt` and `elevenlabs/<NN>_<chapter>.txt` (only the spoken lines),
+`elevenlabs.txt` and `elevenlabs/<NN>_<chapter>.txt` (only the spoken lines, no
+markup: paste them into ElevenLabs as they are),
 `flow-prompts.txt` (one prompt per image), `scenes.md` (per image: its name
 `<enumerate_id>_<part_of_phrase>`, time, line and scene) and `manifest.json`.
 It needs the prompts and this export made from the same script version.

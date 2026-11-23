@@ -8,8 +8,9 @@ line with its start, end, duration and image name, chapter by chapter.
 
 - ``script-timed.md`` — the transcript: time and line, per chapter;
 - ``elevenlabs.txt`` and ``elevenlabs/<NN>_<chapter>.txt`` — only the spoken
-  lines, as the voiceover step exported them (pronunciation spellings and
-  chapter pauses included);
+  lines, to paste into ElevenLabs as they are: the pronunciation spellings are
+  applied, chapters are separated by a blank line, and there is no markup (the
+  voiceover step's ``narration.txt`` keeps its ``<break>`` pause tags);
 - ``flow-prompts.txt`` — the Google Flow prompts, one per image;
 - ``scenes.md`` — per image: its name ``<enumerate_id>_<part_of_phrase>``, its
   time, its line and what the scene shows;
@@ -134,8 +135,10 @@ def write(
         written.append(path)
 
     put("script-timed.md", transcript(script, timing))
-    put("elevenlabs.txt", (voiceover / "narration.txt").read_text())
-    for chapter in sorted((voiceover / "chapters").glob("*.txt")):
+    chapters = sorted((voiceover / "chapters").glob("*.txt"))
+    # only what the voice says: the chapter texts, no <break> tags a model could read aloud
+    put("elevenlabs.txt", "\n\n".join(c.read_text().strip() for c in chapters) + "\n")
+    for chapter in chapters:
         put(f"elevenlabs/{chapter.name}", chapter.read_text())
     put("flow-prompts.txt", (prompts_dir / "prompts.txt").read_text())
     put("scenes.md", scenes(script, prompts, timing))
