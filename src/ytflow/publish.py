@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -59,9 +60,6 @@ def check_template(data: dict, body: str) -> list[str]:
         count = body.count(slot)
         if count != 1:
             problems.append(f"the description template needs {slot} exactly once (found {count})")
-    unknown = set(re.findall(r"\{(\w+)\}", body)) - {"summary", "chapters", "title"}
-    if unknown:
-        problems.append(f"unknown placeholder(s): {', '.join(sorted('{' + u + '}' for u in unknown))}")
     if re.search(r"[<>]", body):
         problems.append("YouTube rejects '<' and '>' in a description")
     return problems
@@ -100,8 +98,29 @@ class Metadata:
     title: str = ""
     summary: str = ""
     tags: list[str] = field(default_factory=list)
+    sections: dict[str, str] = field(default_factory=dict)  # slot name -> text, for the template's {slot}s
     timeline_version: str | None = None
     kit_version: str | None = None
+
+
+def slot_name(heading: str) -> str:
+    """The template slot a '## Heading' fills: lowercase ASCII, other characters as '_'."""
+    ascii_text = unicodedata.normalize("NFKD", heading).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "_", ascii_text).strip("_")
+
+
+def paragraphs(lines: list[str]) -> str:
+    """Lines joined with spaces, a blank line kept as a paragraph break."""
+    out, current = [], []
+    for line in lines:
+        if line.strip():
+            current.append(line.strip())
+        elif current:
+            out.append(" ".join(current))
+            current = []
+    if current:
+        out.append(" ".join(current))
+    return "\n\n".join(out)
 
 
 def parse(text: str) -> tuple[Metadata, list[str]]:
@@ -111,26 +130,31 @@ def parse(text: str) -> tuple[Metadata, list[str]]:
     if header:
         meta.timeline_version, meta.kit_version = header.groups()
     section = None
-    summary: list[str] = []
+    bodies: dict[str, list[str]] = {}
     for number, raw in enumerate(text.splitlines(), 1):
-        line = raw.strip()
-        if not line or line.startswith(">") or HEADER_RE.fullmatch(line):
+        line = raw.rstrip()
+        stripped = line.strip()
+        if stripped.startswith(">") or HEADER_RE.fullmatch(stripped):
             continue
-        if line.startswith("## "):
-            section = line[3:].strip().lower()
-            if section not in ("summary", "tags"):
-                problems.append(f"line {number}: unknown section {line[3:].strip()!r} (Summary or Tags)")
-        elif line.startswith("# "):
+        if stripped.startswith("## "):
+            section = slot_name(stripped[3:])
+            bodies.setdefault(section, [])
+        elif stripped.startswith("# ") and section is None:
             if meta.title:
                 problems.append(f"line {number}: a second '# ' title")
-            meta.title = line[2:].strip()
-        elif section == "summary":
-            summary.append(line)
-        elif section == "tags" and line.startswith(("- ", "* ")):
-            meta.tags.append(line[2:].strip())
-        else:
-            problems.append(f"line {number}: not a title, a summary line or a '- ' tag")
-    meta.summary = " ".join(summary)
+            meta.title = stripped[2:].strip()
+        elif section == "tags":
+            if stripped.startswith(("- ", "* ")):
+                meta.tags.append(stripped[2:].strip())
+            elif stripped:
+                problems.append(f"line {number}: under Tags, one '- ' tag per line")
+        elif section is not None:
+            bodies[section].append(line)
+        elif stripped:
+            problems.append(f"line {number}: text before the first '## ' section")
+    meta.summary = paragraphs(bodies.pop("summary", []))
+    bodies.pop("tags", None)
+    meta.sections = {name: "\n".join(lines).strip("\n") for name, lines in bodies.items()}
     return meta, problems
 
 
@@ -184,7 +208,10 @@ def build(meta: Metadata, template: str, base_tags: list[str], timeline: dict) -
         problems.append("the Summary is missing or still TODO")
     if any(TODO in t for t in meta.tags):
         problems.append("a tag is still TODO")
-    for name, value in (("title", meta.title), ("summary", meta.summary)):
+    for name, value in meta.sections.items():
+        if TODO in value:
+            problems.append(f"the '{name}' section is still TODO")
+    for name, value in (("title", meta.title), ("summary", meta.summary), *meta.sections.items()):
         if re.search(r"[<>]", value):
             problems.append(f"YouTube rejects '<' and '>' in the {name}")
     if problems:
@@ -200,9 +227,14 @@ def build(meta: Metadata, template: str, base_tags: list[str], timeline: dict) -
         lines = []
         # and a label line right above the slot ("Chapters:") with it
         template = re.sub(r"(?m)^[^\n{}]{1,40}:[ \t]*\n(?=\{chapters\})", "", template)
-    slots = {"summary": meta.summary, "chapters": "\n".join(lines), "title": meta.title}
-    # one pass, so text inside the summary is never read as a placeholder
-    description = re.sub(r"\{(summary|chapters|title)\}", lambda m: slots[m.group(1)], template)
+    slots = {**meta.sections, "summary": meta.summary, "chapters": "\n".join(lines), "title": meta.title}
+    wanted = set(re.findall(r"\{(\w+)\}", template))
+    for name in sorted(wanted - slots.keys()):
+        problems.append(f"the template's {{{name}}} needs a '## {name.replace('_', ' ').capitalize()}' section")
+    for name in sorted(meta.sections.keys() - wanted):
+        warnings.append(f"section '{name}' is not in the description template — left out")
+    # one pass, so text inside a section is never read as a placeholder
+    description = re.sub(r"\{(\w+)\}", lambda m: slots.get(m.group(1), m.group(0)), template)
     description = re.sub(r"\n{3,}", "\n\n", description).strip() + "\n"
     if len(description.encode()) > DESCRIPTION_MAX:
         problems.append(f"description is {len(description.encode())} bytes; YouTube allows {DESCRIPTION_MAX}")
