@@ -22,6 +22,8 @@ Paths are relative to the project file, so the video folder can move.
 from __future__ import annotations
 
 import os
+import time
+import uuid
 import xml.etree.ElementTree as ET
 from math import gcd
 from pathlib import Path
@@ -106,6 +108,9 @@ class Builder:
         self.next_id = 2
         self.bin: list[tuple[str, int]] = []  # (producer id, length)
         self.lumas: set[str] = set()  # luma map files the compositions use, relative to the project
+        self.uuid = "{" + str(uuid.uuid4()) + "}"
+        # Kdenlive names the project's cache folder after the document id
+        self.document_id = str(round(time.time() * 1000))
 
     def fr(self, seconds: float) -> int:
         return frames(seconds, self.fps)
@@ -337,6 +342,10 @@ class Builder:
             main_bin,
             {
                 "kdenlive:docproperties.version": DOCUMENT_VERSION,
+                # Kdenlive turns the timeline into a sequence named after the document's uuid when
+                # it upgrades the project; without one it gets the null uuid and rejects the sequence
+                "kdenlive:docproperties.uuid": self.uuid,
+                "kdenlive:docproperties.documentid": self.document_id,
                 "kdenlive:docproperties.profile": "",
                 "kdenlive:docproperties.audioChannels": 2,
                 "kdenlive:docproperties.enableproxy": 0,
