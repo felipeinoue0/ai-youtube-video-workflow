@@ -53,8 +53,11 @@ Then, with the creator:
      it makes takes less consistent.
    - *Speed* — 0.7–1.2. Match the kit's `words_per_minute` (the script's
      timing estimates assume it).
-   - *Model* — `eleven_multilingual_v2` is the safe default. `eleven_v3` is
-     more expressive but ignores the pause tag between chapters.
+   - *Model* — `eleven_multilingual_v2` is the safe default. Eleven v3 and v4
+     are more expressive; they ignore the `<break>` pause tag and pace by
+     punctuation and audio tags such as `[long pause]` instead, so `ytflow`
+     writes no tag for them. Write the model id as ElevenLabs shows it
+     (`eleven_v3`, …).
 3. **Write `voice.md`**: fill the front matter (voice name **and** voice id, so
    the same voice is found again if it is renamed), then replace the
    `TODO(ytflow)` lines with why this voice was chosen and delivery notes.

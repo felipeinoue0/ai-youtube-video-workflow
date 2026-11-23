@@ -33,7 +33,9 @@ AUDIO_EXTENSIONS = (".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac")
 # The ElevenLabs text-to-speech box takes about this many characters per
 # generation on most plans; longer narrations are generated chapter by chapter.
 GENERATION_CHARACTERS = 5000
-# ElevenLabs reads <break time="1.0s" /> in its v2 models; eleven_v3 does not.
+# ElevenLabs reads <break time="1.0s" /> (up to 3 s) in its v2 and older models; Eleven v3 and v4
+# do not, and pace by punctuation and audio tags instead, so newer models get no tag.
+NO_BREAK_TAG_RE = re.compile(r"^eleven_v(\d+)")
 BREAK_TAG_MAX_SECONDS = 3.0
 # How far the narration may run from the script's estimate before it looks wrong.
 DURATION_TOLERANCE = 0.25
@@ -75,7 +77,8 @@ def check_voice(data: dict) -> list[str]:
 
 def break_tag(model: str, seconds: float) -> str:
     """The pause between chapters ElevenLabs understands for this model ('' for none)."""
-    if seconds <= 0 or model.startswith("eleven_v3"):
+    newer = NO_BREAK_TAG_RE.match(model)
+    if seconds <= 0 or (newer and int(newer.group(1)) >= 3):
         return ""
     return f'<break time="{seconds:g}s" />'
 
