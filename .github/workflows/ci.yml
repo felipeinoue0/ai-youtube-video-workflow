@@ -31,6 +31,14 @@ jobs:
           enable-cache: true
           cache-dependency-glob: 'uv.lock'
 
+      # The media tests probe and render with ffmpeg/ffprobe, which the dev
+      # image has and ubuntu-latest does not. They fail (not skip) without it.
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version && ffprobe -version
+
       - name: Install dependencies
         run: uv sync --locked
 
