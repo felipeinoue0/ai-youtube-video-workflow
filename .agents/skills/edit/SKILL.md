@@ -99,6 +99,9 @@ Tell the creator to open that file in Kdenlive. What they will find:
 - **A1**: the narration;
 - the **subtitle track**: subtitles and chapter titles from `subtitles.ass`.
 
+Next to the project, `lumas/` holds the wipe transitions' patterns and
+`subtitles.ass` the text; the project needs both.
+
 Paths are relative to the project file: keep the video folder together, and
 move it as a whole.
 
