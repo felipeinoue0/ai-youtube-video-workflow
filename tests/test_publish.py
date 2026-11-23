@@ -123,7 +123,7 @@ def test_kit_check_validates_the_publish_template(tmp_path: Path) -> None:
     (kit(tmp_path) / "publish.md").write_text('+++\nbase_tags = ["a"]\n+++\n{summary} {summary}\n{footer} <b>\n')
     out = ytflow(tmp_path, "kit", "check", "c", "--file", "publish.md").stdout
     assert "needs {summary} exactly once (found 2)" in out and "needs {chapters} exactly once (found 0)" in out
-    assert "unknown placeholder(s): {footer}" in out and "rejects '<' and '>'" in out
+    assert "rejects '<' and '>'" in out and "footer" not in out  # any {slot} is allowed; publish.md fills it
     (kit(tmp_path) / "publish.md").write_text(TEMPLATE)
     assert "publish.md: ok" in ok(tmp_path, "kit", "check", "c", "--file", "publish.md").stdout
 
@@ -199,3 +199,84 @@ def test_publish_init_needs_a_timeline_and_carries_text_over(tmp_path: Path) -> 
     assert "carried the title, summary and tags over from v1" in second.stderr
     text = (video / "publish" / "v2" / "publish.md").read_text()
     assert text == FILLED.replace("timeline v1", "timeline v2")
+
+
+SECTIONED_TEMPLATE = """+++
+base_tags = ["comece hoje internet"]
++++
+{summary}
+
+🧰 FERRAMENTAS CITADAS NO VÍDEO
+{ferramentas}
+
+💬 {pergunta}
+
+▶️ CONTINUE ASSISTINDO
+{continue_assistindo}
+
+⏱️ CAPÍTULOS
+{chapters}
+
+#ComeceHojeInternet {hashtags}
+"""
+
+SECTIONED = """<!-- timeline v1 · kit v1 -->
+# Título
+
+## Summary
+Primeira linha do resumo,
+continuando o mesmo parágrafo.
+
+Segundo parágrafo.
+
+## Ferramentas
+ChatGPT: https://chatgpt.com
+Canva: https://www.canva.com
+
+## Pergunta
+Qual você vai testar primeiro?
+
+## Continue assistindo
+Internet do zero
+https://www.youtube.com/watch?v=abc
+
+## Hashtags
+#InteligenciaArtificial #YouTube
+
+## Extra
+Not in the template.
+
+## Tags
+- ia
+"""
+
+
+def test_publish_fills_template_slots_from_sections(tmp_path: Path) -> None:
+    video = setup(tmp_path, timeline=True)
+    (kit(tmp_path) / "publish.md").write_text(SECTIONED_TEMPLATE)
+    assert "publish.md: ok" in ok(tmp_path, "kit", "check", "c", "--file", "publish.md").stdout
+    source = Path(ok(tmp_path, "publish", "init", "c", "v").stdout.strip())
+    source.write_text(
+        SECTIONED.replace("## Continue assistindo\nInternet do zero\nhttps://www.youtube.com/watch?v=abc\n\n", "")
+    )
+    missing = ytflow(tmp_path, "publish", "build", "c", "v")
+    assert (
+        missing.returncode == 1 and "{continue_assistindo} needs a '## Continue assistindo' section" in missing.stdout
+    )
+
+    source.write_text(SECTIONED)
+    out = ok(tmp_path, "publish", "build", "c", "v").stdout
+    assert "section 'extra' is not in the description template" in out
+    description = (video / "publish" / "v1" / "description.txt").read_text()
+    assert description.startswith(
+        "Primeira linha do resumo, continuando o mesmo parágrafo.\n\nSegundo parágrafo.\n\n"
+        "🧰 FERRAMENTAS CITADAS NO VÍDEO\nChatGPT: https://chatgpt.com\nCanva: https://www.canva.com\n\n"
+        "💬 Qual você vai testar primeiro?\n\n▶️ CONTINUE ASSISTINDO\nInternet do zero\nhttps://www.youtube.com/watch?v=abc\n"
+    )
+    assert "⏱️ CAPÍTULOS\n0:00 Silver\n" in description
+    assert description.endswith("#ComeceHojeInternet #InteligenciaArtificial #YouTube\n")
+    assert "Not in the template" not in description
+
+    source.write_text(SECTIONED.replace("Qual você vai testar primeiro?", "TODO: a question"))
+    todo = ytflow(tmp_path, "publish", "build", "c", "v")
+    assert todo.returncode == 1 and "the 'pergunta' section is still TODO" in todo.stdout
