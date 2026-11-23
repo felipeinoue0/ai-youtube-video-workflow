@@ -380,10 +380,9 @@ them whenever the repository is transferred.
 - Tag protection for `v*`, so a published release tag cannot be moved.
 - Dependabot targeting `dev` — see `.github/dependabot.yml`.
 
-**Licensing:** `LICENSE` is **proprietary — all rights reserved** on purpose:
-the project starts closed, and the maintainer opens it when there is a stable
-release worth publishing. To open-source it, replace `LICENSE` with the MIT
-text, update the README badge, and commit that change on its own.
+**Licensing:** `LICENSE` is **MIT** — the repository is public and anyone may
+reuse or adapt it. Keep the README badges (`README.md`, `README.pt-BR.md`,
+`docs/wiki/Home.md`) and license sections in step with the file.
 
 ### Milestones
 

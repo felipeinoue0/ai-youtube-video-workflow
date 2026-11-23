@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/Kdenlive-export-527EB2?logo=kdenlive&logoColor=white" alt="Kdenlive">
   <img src="https://img.shields.io/badge/agents-Claude%20Code%20%7C%20opencode%20%7C%20Codex-D97757" alt="Agents">
   <img src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20WSL2%20%7C%20Windows-4c8bf5" alt="Platforms">
-  <a href="https://github.com/fiwon123/ai-youtube-video-workflow/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-proprietary-555" alt="License"></a>
+  <a href="https://github.com/fiwon123/ai-youtube-video-workflow/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-yellow" alt="License"></a>
 </p>
 
 <p><a href="#-começo-rápido">🚀 Começo rápido</a> · <a href="#-como-usar">🎬 Como usar</a> · <a href="#-onde-ficam-seus-arquivos">📁 Seus arquivos</a> · <a href="#-perguntas-frequentes">💬 Dúvidas</a> · <a href="docs/wiki/Walkthrough.md">📖 Passo a passo</a></p>
@@ -59,6 +59,17 @@ tempo de cada frase e da montagem da edição.
 > Ele **não** usa essas ferramentas por você e **não precisa de chave de
 > API**. Nada do que você cria sai do seu computador: tudo fica na pasta
 > `channels/`.
+
+> [!TIP]
+> **Você não precisa do Kdenlive nem do Docker para usar isto.** Por enquanto
+> o projeto é feito para Linux e para uma edição no Kdenlive, porque é o que o
+> autor usa. Mas o fluxo em si é um guia passo a passo de um canal vazio até um
+> vídeo publicado — identidade visual, estilo, roteiro, imagens, narração,
+> edição, publicação — e você pode segui-lo com o editor, o sistema e as
+> ferramentas que preferir. As skills em [`.agents/skills/`](.agents/skills/)
+> e o [passo a passo](docs/wiki/Walkthrough.md) descrevem cada etapa em
+> palavras simples. A licença é [MIT](LICENSE): reaproveite qualquer parte para
+> montar o seu próprio fluxo, do jeito que você precisar.
 
 ## 🚀 Começo rápido
 
@@ -197,4 +208,4 @@ estão em [AGENTS.md](AGENTS.md).
 
 ## 📜 Licença
 
-Proprietária, todos os direitos reservados. Veja [LICENSE](LICENSE).
+[MIT](LICENSE): use, modifique e reaproveite qualquer parte para os seus próprios projetos.
