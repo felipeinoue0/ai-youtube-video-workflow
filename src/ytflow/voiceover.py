@@ -12,7 +12,8 @@ writes, in ``voiceover/v<N>/``:
 
 The creator generates the audio in ElevenLabs and saves it in the video's
 ``audio/`` folder, either as one ``narration.<ext>`` or as one file per chapter
-named like the chapter text files. ``ytflow audio check`` verifies that.
+named like the chapter text files; a single audio file with any other name
+counts as the narration too. ``ytflow audio check`` verifies that.
 """
 
 from __future__ import annotations
@@ -218,13 +219,15 @@ def check_audio(audio_dir: Path, chapter_names: list[str]) -> AudioReport:
         report.problems.append(
             f"both {single[0].name} and per-chapter files are in audio/ — keep one layout, move the other out"
         )
+    if not single and not per_chapter and len(files) == 1:
+        single = files  # one audio file, whatever its name (an ElevenLabs download, "voz.mp3"): the narration
     if single:
         report.layout, report.files = "single", single[:1]
     elif per_chapter:
         report.layout = "chapters"
         report.files = [by_stem[name][0] for name in per_chapter]
         report.missing = [name for name in chapter_names if name not in by_stem]
-    known = {NARRATION, *chapter_names}
+    known = {NARRATION, *chapter_names, *(f.stem for f in report.files)}
     report.extra = [p for p in files if p.stem not in known]
     return report
 

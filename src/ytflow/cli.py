@@ -160,10 +160,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("channel")
     p.add_argument("video")
     p.set_defaults(func=cmd_images_check)
-    p = images.add_parser("import", help="copy downloads (oldest first) to the missing image names")
+    p = images.add_parser("import", help="give downloads their image names: by name, download order or --pair")
     p.add_argument("channel")
     p.add_argument("video")
     p.add_argument("--from", dest="source", type=Path, required=True, help="folder with the downloaded images")
+    p.add_argument(
+        "--pair", action="append", metavar="FILE=NAME", help="pair one download with an image name (repeatable)"
+    )
     p.add_argument("--apply", action="store_true", help="copy the files (default: only show the plan)")
     p.set_defaults(func=cmd_images_import)
 
@@ -501,19 +504,36 @@ def cmd_images_import(args: argparse.Namespace) -> int:
     source = args.source.resolve()
     if not source.is_dir():
         raise WorkspaceError(f"{args.source} is not a folder")
-    if source == images_dir.resolve():
-        raise WorkspaceError("--from must be the downloads folder, not the video's images/ folder")
-    plan = import_plan(source, images_dir, built_prompts(ws, args.channel, args.video))
-    if not plan:
+    explicit = {}
+    for pair in args.pair or []:
+        file_name, sep, name = pair.partition("=")
+        if not sep or not file_name or not name:
+            raise WorkspaceError(f"--pair {pair!r}: write it as FILE=NAME (the download's file name = the image name)")
+        explicit[file_name.strip()] = Path(name.strip()).stem
+    plan = import_plan(source, images_dir, built_prompts(ws, args.channel, args.video), explicit)
+    for problem in plan.problems:
+        print(f"- {problem}")
+    how = {"name": "by name", "order": "download order", "pair": "--pair"}
+    for download, target, kind in plan.pairs:
+        print(f"{download.name} -> {target.name}  ({how[kind]})")
+    for download in plan.unmatched:
+        print(f"unmatched: {download.name}")
+    if plan.unmatched and plan.missing:
+        print(
+            "the unmatched downloads share one file time, so their order is unknown — look at them and pair each "
+            "with --pair FILE=NAME; still without an image: " + ", ".join(plan.missing)
+        )
+    if plan.problems:
+        return 1
+    if not plan.pairs:
         print("nothing to import: no missing images, or no image files in the folder")
         return 0
-    for src, dest in plan:
-        print(f"{src.name} -> {dest.name}")
+    verb = "renamed" if plan.in_place else "copied"
     if args.apply:
         apply_plan(plan)
-        print(f"copied {len(plan)} file(s) into {images_dir}")
+        print(f"{verb} {len(plan.pairs)} file(s) into {images_dir}")
     else:
-        print(f"{len(plan)} file(s) would be copied, oldest download first — check the pairs, then add --apply")
+        print(f"{len(plan.pairs)} file(s) would be {verb} — check the pairs, then add --apply")
     return 0
 
 

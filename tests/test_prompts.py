@@ -207,10 +207,45 @@ def test_images_import_pairs_downloads_oldest_first(tmp_path: Path, video: Path)
         image(path, 64, 36) if name != "notes.txt" else path.write_text("x")
         os.utime(path, (1_000_000 + i, 1_000_000 + i))
     plan = ok(tmp_path, "images", "import", "c", "v", "--from", str(downloads))
-    assert plan.splitlines()[:2] == [f"zeta.png -> {NAMES[1]}.png", f"alpha.jpeg -> {NAMES[2]}.jpeg"]
+    assert plan.splitlines()[:2] == [
+        f"zeta.png -> {NAMES[1]}.png  (download order)",
+        f"alpha.jpeg -> {NAMES[2]}.jpeg  (download order)",
+    ]
     assert "add --apply" in plan and not (video / "images" / f"{NAMES[1]}.png").exists()
     ok(tmp_path, "images", "import", "c", "v", "--from", str(downloads), "--apply")
     assert (video / "images" / f"{NAMES[1]}.png").is_file() and (downloads / "zeta.png").is_file()
     assert ok(tmp_path, "images", "check", "c", "v").endswith("ok")
-    same = ytflow(tmp_path, "images", "import", "c", "v", "--from", str(video / "images"))
-    assert same.returncode == 1 and "not the video's images/ folder" in same.stderr
+    done = ok(tmp_path, "images", "import", "c", "v", "--from", str(video / "images"))
+    assert "nothing to import" in done
+
+
+def test_images_import_pairs_flow_names_and_asks_for_the_rest(tmp_path: Path, video: Path) -> None:
+    """Flow names a download after its prompt plus a hash; copied-out files all share one time."""
+    built(tmp_path)
+    images = video / "images"  # the creator saved the downloads straight into images/
+    image(images / f"{NAMES[1]}_314562ba.jpg", 64, 36)
+    image(images / "Runner_on_empty_street_d2720777.jpg", 64, 36)
+    image(images / "Corkboard_with_cards_fb3fee6e.jpg", 64, 36)
+    for path in images.iterdir():
+        os.utime(path, (1_000_000, 1_000_000))  # one time for all: the download order is lost
+    plan = ok(tmp_path, "images", "import", "c", "v", "--from", str(images))
+    assert f"{NAMES[1]}_314562ba.jpg -> {NAMES[1]}.jpg  (by name)" in plan
+    assert (
+        "unmatched: Corkboard_with_cards_fb3fee6e.jpg" in plan
+        and "unmatched: Runner_on_empty_street_d2720777.jpg" in plan
+    )
+    assert f"still without an image: {NAMES[0]}, {NAMES[2]}" in plan and "1 file(s) would be renamed" in plan
+
+    bad = ytflow(tmp_path, "images", "import", "c", "v", "--from", str(images), "--pair", "nope.jpg=001_x")
+    assert bad.returncode == 1 and "no image 'nope.jpg' to import" in bad.stdout
+    pairs = [
+        "--pair",
+        f"Runner_on_empty_street_d2720777.jpg={NAMES[0]}",
+        "--pair",
+        f"Corkboard_with_cards_fb3fee6e.jpg={NAMES[2]}.png",
+    ]
+    applied = ok(tmp_path, "images", "import", "c", "v", "--from", str(images), *pairs, "--apply")
+    assert f"Runner_on_empty_street_d2720777.jpg -> {NAMES[0]}.jpg  (--pair)" in applied
+    assert "renamed 3 file(s)" in applied
+    assert sorted(p.name for p in images.iterdir()) == [f"{NAMES[0]}.jpg", f"{NAMES[1]}.jpg", f"{NAMES[2]}.jpg"]
+    assert ok(tmp_path, "images", "check", "c", "v").endswith("ok")
