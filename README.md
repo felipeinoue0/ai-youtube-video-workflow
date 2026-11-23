@@ -17,7 +17,10 @@
 ## Table of contents
 
 - [About](#about)
+- [Quick start](#quick-start)
 - [How to use](#how-to-use)
+- [Where your files are](#where-your-files-are)
+- [Common questions](#common-questions)
 - [Architecture](#architecture)
 - [Repository](#repository)
 - [How to develop](#how-to-develop)
@@ -31,57 +34,144 @@
 Making a long YouTube video with AI tools means juggling many of them by hand:
 a design tool for the logo, reference videos for the style, an image generator
 for every scene, a voice generator, a video editor, and YouTube's own metadata.
-This project connects those steps. You run a guided workflow with an AI coding
-agent (Claude Code, opencode or Codex). Each step produces a **versioned**
-output you review and improve before moving on. It tells you what to make in
-each external tool and generates everything that tool needs. It does not call
-those tools for you.
 
-> **Status**: repository set up; the workflow steps are being built in the
-> order listed under [How to use](#how-to-use).
+This project connects those steps. You **talk to an AI coding agent**
+(Claude Code, opencode or Codex) and it walks you through the video one step
+at a time. In each step it writes what you need (the script, the image
+prompts, the narration text, the Kdenlive project, the title and description),
+tells you exactly what to do in the external tool, and checks what you bring
+back. You review every result before moving on.
+
+**In short:** you bring the ideas and press the buttons in Canva, Google Flow,
+ElevenLabs and Kdenlive; the agent does the writing, the naming, the timing and
+the editing setup.
+
+> It does **not** call those tools for you and needs **no API key**. Nothing
+> you create leaves your computer: everything stays in the `channels/` folder.
+
+## Quick start
+
+**1. Get what you need**
+
+| You need | What for |
+|---|---|
+| An AI coding agent: [Claude Code](https://claude.com/claude-code), opencode or Codex | it runs the workflow |
+| Either [Docker](https://docs.docker.com/get-docker/) **or** Python 3.12 + [uv](https://docs.astral.sh/uv/) | runs the `ytflow` tool |
+| Accounts on Canva, Google Flow and ElevenLabs | logo/banner, images, voice |
+| [Kdenlive](https://kdenlive.org/) (free) | the final edit and render |
+
+**2. Get the project and start the agent**
+
+```bash
+git clone https://github.com/fiwon123/ai-youtube-video-workflow.git
+cd ai-youtube-video-workflow
+
+# With Docker (the agents are already installed inside):
+make dev-up          # start the sandbox, then Ctrl-C to leave the logs
+make claude-auto     # or: make opencode-auto / make codex-auto
+
+# Or without Docker, with your own agent installed:
+uv sync
+claude               # open your agent in this folder
+```
+
+On Windows without WSL2, use `python scripts/dev-up.py dev-up` and
+`python scripts/dev-up.py claude-auto` instead of `make`.
+
+**3. Say what you want**
+
+Just write to the agent in plain words, for example:
+
+> *"Let's create a new channel about ancient history."*
+>
+> *"Let's continue."* (it finds where you stopped)
+>
+> *"Start a new video about the Roman roads."*
+
+The `guide` skill checks where you are (`ytflow status`) and opens the right
+step. You never need to remember a command; the agent runs them for you.
 
 ## How to use
 
-You work with an AI agent inside this repository. Say **"let's continue"** (or
-"start a new video"): the `guide` skill runs `ytflow status` and hands over to
-the skill for the next step. Every step writes a new version under
-`channels/<channel>/…/<step>/v<N>/`, so you can ask for another one and compare.
+Each step below is one conversation with the agent. When you are happy with a
+result, say so and it moves to the next step. Not happy? Ask for changes: it
+writes a **new version** (`v2`, `v3`, …) and keeps the old ones.
 
-**Once per channel**
+### Once per channel
 
-1. **Branding**: a short interview, then the logo and banner made in Canva
-   (sizes, safe areas, style direction), the channel description and keywords,
-   and the description template every video will use.
-2. **Style**: give the agent 2–5 transcripts of videos you like. It measures
-   them and writes the style guide (hook, pacing, structure, tone) and the
-   visual anchor added to every image prompt.
+| Step | The agent does | You do |
+|---|---|---|
+| **1. Branding** | asks a few questions, then writes the channel name ideas, description, keywords, the Canva sizes and style for the logo and banner, and the description template for every video | make the logo and banner in Canva, save them in the branding folder (the agent checks YouTube's sizes) and upload them to YouTube |
+| **2. Style** | reads 2–5 transcripts of videos you like and writes the style guide (hook, pace, structure, tone) and the "visual anchor" added to every image prompt | paste the transcripts into the chat or a file |
 
-**For every video**
+### For every video
 
-3. **Script**: an outline, then the script, one phrase per line in chapters.
-4. **Images**: one Google Flow prompt per phrase, named
-   `<enumerate_id>_<part_of_phrase>` (e.g. `012_the-river-at-dawn`). Download
-   the images; `ytflow images import` renames them in download order.
-5. **Narration**: the text to paste into ElevenLabs. Save the audio back, and
-   `ytflow align` times every phrase to the real voice.
-6. **Edit**: a Kdenlive project with boxed subtitles, the chapter title
-   top-left, a fade in and out, varied transitions and a slow pan or zoom on
-   each image — plus a quick preview render.
-7. **Publish**: pick your title; get the description with chapter timestamps,
-   the tags, and the captions file.
+| Step | The agent does | You do |
+|---|---|---|
+| **3. Script** | an outline first, then the script: one phrase per line, grouped in chapters | read it and ask for changes until you like it |
+| **4. Images** | one Google Flow prompt per phrase, named `001_the-river-at-dawn`, `002_…` | generate each image in Google Flow and download it; the agent renames the downloads (`ytflow images import`) and checks none is missing |
+| **5. Narration** | the text to paste into ElevenLabs (and your chosen voice, saved for later videos) | generate the audio in ElevenLabs and save it in the video's `audio/` folder; the agent then times every phrase to the real voice (`ytflow align`) |
+| **6. Edit** | a Kdenlive project: subtitles in a box, chapter title at the top-left, fade in/out, transitions and a slow zoom or pan on each image, plus a quick preview video | open the project in Kdenlive, watch it, tweak if you want, and render |
+| **7. Publish** | title options, the description (with chapter timestamps), the tags and the captions file | pick a title and upload the video to YouTube |
 
-The first video also settles the voice and the edit; they are stored in the
-channel **kit**, so video 2, 3, 4 come out with the same style, look, voice and
-edit without setting anything up again.
+**Video 2 and later are faster.** The first video saves your voice, edit
+settings and style into the channel **kit**, so every new video uses them
+automatically and looks like the first one.
 
-**[Walkthrough](docs/wiki/Walkthrough.md)**: one sample channel from an empty
-folder to a finished video and the start of the next one, with every command
-and its real output.
+Want to see a whole run with real commands and their output? Read the
+**[Walkthrough](docs/wiki/Walkthrough.md)**.
 
-What you need: an AI coding agent, plus the tools you use along the way
-(Canva, Google Flow, ElevenLabs, Kdenlive). None of them needs an API key here.
-For the most precise timing, `uv sync --extra align` installs faster-whisper
-(optional).
+Optional: for the most precise subtitle timing, run `uv sync --extra align`
+once (installs faster-whisper). Without it, timing is estimated per chapter.
+
+## Where your files are
+
+Everything lives in `channels/` (never committed to git):
+
+```text
+channels/<channel>/
+├── branding/v1/              brief, Canva guide, name/description/keywords, your logo + banner
+├── references/               transcripts of videos you like (for the style step)
+├── kit/v1/                   the channel's style, visual anchor, voice, edit settings
+└── videos/<video>/
+    ├── script/v1/            the script (and its timed version)
+    ├── prompts/v1/           one Google Flow prompt per phrase
+    ├── images/               your images: 001_…png, 002_…png, …
+    ├── voiceover/v1/         the text for ElevenLabs
+    ├── audio/                your narration audio
+    ├── timing/v1/            when each phrase is spoken + subtitles.srt
+    ├── timeline/v1/          the Kdenlive project (<video>.kdenlive) + preview.mp4
+    ├── publish/v1/           title, description, tags
+    └── package/v1/           everything you paste into the tools, in one folder
+```
+
+Tip: ask the agent *"make the package"* (`ytflow package`) to get one folder
+with the timed script, the ElevenLabs text and the Flow prompts side by side.
+
+## Common questions
+
+**I don't like a result. What now?**
+Tell the agent what to change. It writes a new version (`v2`) and the old one
+is kept, so you can compare or go back.
+
+**I stopped in the middle. How do I continue?**
+Open the agent and say *"let's continue"*. It reads `ytflow status` and picks
+up where you were.
+
+**How do I start the next video?**
+Say *"start a new video about …"*. Branding and style are already done, so it
+starts at the script.
+
+**I want to change the channel's style or voice.**
+Ask for it. The agent writes a new kit version; videos already made keep the
+kit they used, new videos get the new one.
+
+**Do I need to know the `ytflow` commands?**
+No. The agent runs them. `uv run ytflow --help` lists them if you are curious.
+
+**My image downloads have random names.**
+That is fine: the agent matches them to the prompts by name or download order,
+and asks you only about the ones it cannot match.
 
 ## Architecture
 
@@ -209,9 +299,11 @@ make reset       # stops the sandbox and deletes its volumes, agent logins inclu
   guides); that layout is tested by reading it back, and still has to be
   opened in Kdenlive to be called verified. Other Kdenlive versions are untried.
 - **The external tools**: the [walkthrough](docs/wiki/Walkthrough.md) ran with
-  stand-ins for Canva, Google Flow and ElevenLabs (generated images, a
-  synthetic voice). Their real download names and settings screens may differ
-  from what the skills describe.
+  stand-ins for Canva, Google Flow and ElevenLabs. Real Google Flow downloads
+  and a real ElevenLabs narration have since been imported on one channel
+  ([#41](https://github.com/fiwon123/ai-youtube-video-workflow/issues/41));
+  other accounts' settings screens may still differ from what the skills
+  describe.
 - **The dev sandbox on macOS and native Windows**: it was only started on Linux.
 
 ## License
