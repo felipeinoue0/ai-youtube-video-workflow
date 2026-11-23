@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import os
 import time
-import uuid
 import xml.etree.ElementTree as ET
 from math import gcd
 from pathlib import Path
@@ -108,7 +107,6 @@ class Builder:
         self.next_id = 2
         self.bin: list[tuple[str, int]] = []  # (producer id, length)
         self.lumas: set[str] = set()  # luma map files the compositions use, relative to the project
-        self.uuid = "{" + str(uuid.uuid4()) + "}"
         # Kdenlive names the project's cache folder after the document id
         self.document_id = str(round(time.time() * 1000))
 
@@ -342,9 +340,8 @@ class Builder:
             main_bin,
             {
                 "kdenlive:docproperties.version": DOCUMENT_VERSION,
-                # Kdenlive turns the timeline into a sequence named after the document's uuid when
-                # it upgrades the project; without one it gets the null uuid and rejects the sequence
-                "kdenlive:docproperties.uuid": self.uuid,
+                # no docproperties.uuid: sequences and their uuids are 1.1; Kdenlive creates them
+                # itself when it upgrades this document
                 "kdenlive:docproperties.documentid": self.document_id,
                 "kdenlive:docproperties.profile": "",
                 "kdenlive:docproperties.audioChannels": 2,
@@ -360,7 +357,9 @@ class Builder:
         tractor = ET.SubElement(
             self.root, "tractor", id="maintractor", global_feed="1", attrib={"in": "0", "out": str(self.total - 1)}
         )
-        props(tractor, {"kdenlive:projectTractor": 1})
+        # No `kdenlive:projectTractor` here: that marks the 1.1 project tractor whose tracks are
+        # sequences, and on this 1.04 main tractor it made Kdenlive read the black track as a
+        # sequence clip with no uuid ("invalid sequence clip in bin ... {00000000-...}=").
         for producer in ("black_track", "tractor_a1", "tractor_v1", "tractor_v2"):
             ET.SubElement(tractor, "track", producer=producer)
         props(
