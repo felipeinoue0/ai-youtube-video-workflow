@@ -34,10 +34,17 @@ ytflow kit edit <channel> <video> --file edit-preset.toml   # prints the kit dir
 Walk the creator through the defaults, one section at a time, and change only
 what they ask for:
 
-- `[subtitles]` — font, size and box opacity. 48 px on 1080p with a 60% black
-  box reads on bright and dark images; raise the opacity if the images are busy.
-  `max_chars_per_line` 42 and `max_lines` 2 are the usual readability limits.
-- `[chapters]` — how long the title shows (`seconds`) and its margin.
+- `[subtitles]` — font, size, `bold`, colours and box opacity; `box_style`
+  `"block"` draws one box around the whole subtitle (two lines included),
+  `"lines"` one per line; `highlight_color` for the script's **key words**;
+  `fade_ms` fades each block. A phrase longer than `max_lines` lines is shown
+  as consecutive short blocks. To copy a channel's existing look, read the
+  styles of one of its subtitle files (`.ass`) and set these from it.
+  48 px on 1080p with a 60% black box reads on bright and dark images; raise
+  the opacity if the images are busy. `max_chars_per_line` 42 and `max_lines`
+  2 are the usual readability limits (fewer characters for a bigger font).
+- `[chapters]` — how long the title shows (`seconds`), its margin, `color`,
+  `box_opacity`, `bold`, `underline`, and `slide` (slides in from the right).
 - `[video]` — size, frame rate, fade lengths.
 - `[audio]` — `lead_seconds` of image before the narration, `tail_seconds`
   after it.

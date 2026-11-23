@@ -42,6 +42,14 @@ def cell(text: str) -> str:
     return text.replace("|", "\\|")
 
 
+def marked(phrase: dict) -> str:
+    """The phrase with its highlights in **bold**, as script.md writes them."""
+    text = phrase["text"]
+    for start, end in sorted(phrase.get("highlights", []), reverse=True):
+        text = f"{text[:start]}**{text[start:end]}**{text[end:]}"
+    return text
+
+
 def timed(script: dict, timing: dict | None) -> tuple[list[dict], list[dict]]:
     """(phrases, chapters) with the aligned times when a timing is given, else the script's estimates."""
     if timing is None:
@@ -85,7 +93,7 @@ def transcript(script: dict, timing: dict | None = None) -> str:
             length = phrase["end"] - phrase["start"]
             out.append(
                 f"| {phrase['id']} | {stamp(phrase['start'])} | {stamp(phrase['end'])} | {length:.1f} s "
-                f"| {phrase['name']} | {cell(phrase['text'])} |"
+                f"| {phrase['name']} | {cell(marked(phrase))} |"
             )
     return "\n".join(out) + "\n"
 

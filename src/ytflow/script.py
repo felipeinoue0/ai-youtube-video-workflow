@@ -8,6 +8,7 @@ The agent writes ``script.md``, which the creator reads and edits::
 
     ## Chapter title
     - One phrase per line: one subtitle, one image, one idea.
+    - **Key words** between double asterisks are highlighted on screen.
     - The next phrase.
 
 ``ytflow script build`` validates it against the video's kit and writes
@@ -51,6 +52,8 @@ class Phrase:
     start: float = 0.0
     end: float = 0.0
     line: int = 0
+    # [start, end) character spans of `text` to highlight on screen, marked **like this** in script.md
+    highlights: list[list[int]] = field(default_factory=list)
 
 
 @dataclass
@@ -85,6 +88,25 @@ class Script:
         for item in (*data["chapters"], *data["phrases"]):
             del item["line"]
         return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+
+
+HIGHLIGHT = "**"
+
+
+def unmark(text: str) -> tuple[str, list[list[int]], bool]:
+    """Text without its **highlight** marks, the highlighted spans in it, and whether every mark is closed."""
+    clean, spans, opened = "", [], None
+    parts = text.split(HIGHLIGHT)
+    for i, part in enumerate(parts):
+        if i:
+            if opened is None:
+                opened = len(clean)
+            else:
+                if len(clean) > opened:
+                    spans.append([opened, len(clean)])
+                opened = None
+        clean += part
+    return clean, spans, opened is None
 
 
 def count_words(text: str) -> int:
@@ -150,7 +172,10 @@ def build(text: str, words_per_minute: float, phrase_words_max: int) -> tuple[Sc
 
     width = max(3, len(str(len(raw_phrases))))
     phrases: list[Phrase] = []
-    for i, (chapter, number, text_) in enumerate(raw_phrases, 1):
+    for i, (chapter, number, marked) in enumerate(raw_phrases, 1):
+        text_, highlights, closed = unmark(marked)
+        if not closed:
+            problems.append(f"line {number}: a '**' highlight is never closed")
         words = count_words(text_)
         if words == 0:
             problems.append(f"line {number}: empty phrase")
@@ -158,7 +183,7 @@ def build(text: str, words_per_minute: float, phrase_words_max: int) -> tuple[Sc
             problems.append(f"line {number}: phrase has {words} words; the kit allows {phrase_words_max} — split it")
         id_ = f"{i:0{width}d}"
         slug = slugify(text_)
-        phrases.append(Phrase(id_, slug, f"{id_}_{slug}", chapter, text_, words, line=number))
+        phrases.append(Phrase(id_, slug, f"{id_}_{slug}", chapter, text_, words, line=number, highlights=highlights))
     if problems:
         return None, problems
 

@@ -181,6 +181,11 @@ max_chars_per_line = 42
 max_lines = 2
 margin_bottom = 60
 min_seconds = 1.0         # shortest time a subtitle stays on screen
+bold = false
+box_padding = 12          # space between the text and its box
+box_style = "block"       # "block": one box around the whole subtitle; "lines": one per line
+highlight_color = "#ffd166"   # **key words** in the script
+fade_ms = 0               # fade in/out of each subtitle block
 
 [chapters]
 position = "top-left"
@@ -188,6 +193,11 @@ font = "Noto Sans"
 size = 40
 seconds = 5.0             # how long the chapter title shows
 margin = 48
+color = "#ffffff"
+box_opacity = 0.6
+bold = true
+underline = false
+slide = false             # slide in from the right
 
 [video]
 width = 1920
