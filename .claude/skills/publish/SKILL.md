@@ -58,6 +58,31 @@ Two or three sentences under `## Summary`: the first ~150 characters show
 above "more", so the first sentence carries the promise and the main search
 words. Plain text; YouTube rejects `<` and `>`.
 
+### Other parts of the description
+
+The kit's template may have more slots than `{summary}` and `{chapters}`:
+`{ferramentas}`, `{pergunta}`, `{continue_assistindo}`, `{recursos}`,
+`{hashtags}`… Each is filled by the section of the same name in `publish.md`
+(`## Continue assistindo` fills `{continue_assistindo}`: lowercase, accents
+dropped, spaces as `_`), with its line breaks kept. Fill every one: a slot
+without its section stops the build, and a section the template does not use
+is left out with a warning. The summary keeps its paragraphs (blank line
+between them).
+
+Typical parts, and how to fill them:
+
+- **Tools shown in the video**: one per line, `Name: official link`. Check
+  each link opens the tool's own site; the creator swaps in an affiliate link
+  where they have one.
+- **Question**: one question tied to the video, to open the comments.
+- **Continue watching**: the creator's previous video or playlist, title and
+  link (ask them).
+- **Resources**: only what helps with this video's topic, each with one line
+  on what it is for; never an income promise. Keep the affiliate notice the
+  template has.
+- **Hashtags**: two or three for the topic (the first three show above the
+  title).
+
 ## 4. Tags
 
 Under `## Tags`, 5–12 tags for **this** video only (one `- ` per line): the
