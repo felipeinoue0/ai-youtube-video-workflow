@@ -688,7 +688,11 @@ def cmd_timeline_build(args: argparse.Namespace) -> int:
         "timing_version": timing_dir.name,
         "kit_version": kit.name,
     }
-    result = build_timeline(timing, images, preset, sources)
+    script_path = version_dir(video_dir / "script", timing["script_version"]) / SCRIPT_COMPILED
+    highlights = {}
+    if script_path.is_file():
+        highlights = {p["name"]: p.get("highlights", []) for p in json.loads(script_path.read_text())["phrases"]}
+    result = build_timeline(timing, images, preset, sources, highlights)
     version = new_version(video_dir / "timeline")
     path = write_timeline(version, result)
     write_subtitles(version, result.data)

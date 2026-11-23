@@ -21,6 +21,7 @@ decisions of their own.
 from __future__ import annotations
 
 import json
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,6 +39,7 @@ TRANSITIONS = (
     "slide-up",
     "slide-down",
 )
+BOX_STYLES = ("block", "lines")
 MOVES = ("zoom-in", "zoom-out", "pan-left", "pan-right", "pan-up", "pan-down")
 
 PRESET_DEFAULTS: dict[str, dict] = {
@@ -51,8 +53,24 @@ PRESET_DEFAULTS: dict[str, dict] = {
         "max_lines": 2,
         "margin_bottom": 60,
         "min_seconds": 1.0,
+        "bold": False,
+        "box_padding": 12,
+        "box_style": "block",  # one box around the whole subtitle (libass >= 0.17); "lines": one per line
+        "highlight_color": "#ffd166",
+        "fade_ms": 0,
     },
-    "chapters": {"position": "top-left", "font": "Noto Sans", "size": 40, "seconds": 5.0, "margin": 48},
+    "chapters": {
+        "position": "top-left",
+        "font": "Noto Sans",
+        "size": 40,
+        "seconds": 5.0,
+        "margin": 48,
+        "color": "#ffffff",
+        "box_opacity": 0.6,
+        "bold": True,
+        "underline": False,
+        "slide": False,
+    },
     "video": {"width": 1920, "height": 1080, "fps": 30, "fade_in_seconds": 1.0, "fade_out_seconds": 1.5},
     "audio": {"lead_seconds": 0.5, "tail_seconds": 1.5},
     "transitions": {"types": ["dissolve", "wipe-left", "wipe-right", "slide-up"], "seconds": 0.6},
@@ -102,6 +120,14 @@ def check_preset(preset: dict) -> list[str]:
     number("subtitles", "max_lines", 1, 3)
     number("subtitles", "margin_bottom", 0, 400)
     number("subtitles", "min_seconds", 0.5, 3)
+    number("subtitles", "box_padding", 0, 80)
+    number("subtitles", "fade_ms", 0, 1000)
+    number("chapters", "box_opacity", 0, 1)
+    if preset["subtitles"].get("box_style") not in BOX_STYLES:
+        problems.append(f"[subtitles] box_style must be one of {', '.join(BOX_STYLES)}")
+    for section, key in (("subtitles", "bold"), ("chapters", "bold"), ("chapters", "underline"), ("chapters", "slide")):
+        if not isinstance(preset[section].get(key), bool):
+            problems.append(f"[{section}] {key} must be true or false")
     number("chapters", "size", 16, 160)
     number("chapters", "seconds", 1, 30)
     number("chapters", "margin", 0, 400)
@@ -115,7 +141,12 @@ def check_preset(preset: dict) -> list[str]:
     number("transitions", "seconds", 0.1, 2)
     number("camera", "max_zoom", 1, 1.5)
     number("camera", "zoom_per_second", 0.005, 0.2)
-    for section, key in (("subtitles", "color"), ("subtitles", "box_color")):
+    for section, key in (
+        ("subtitles", "color"),
+        ("subtitles", "box_color"),
+        ("subtitles", "highlight_color"),
+        ("chapters", "color"),
+    ):
         value = preset[section].get(key)
         if not (isinstance(value, str) and len(value) == 7 and value.startswith("#")):
             problems.append(f"[{section}] {key} must be a colour like #ffffff")
@@ -173,6 +204,41 @@ def wrap(text: str, width: int) -> list[str]:
     return lines
 
 
+def blocks(text: str, width: int, max_lines: int, highlights: list[list[int]] | None = None) -> list[dict]:
+    """The phrase cut into on-screen blocks of at most max_lines lines, each with its highlight spans.
+
+    A block is {"text", "lines", "highlights"}; spans are [start, end) in the block's text, which is
+    its lines joined by single spaces.
+    """
+    words = [(m.start(), m.end()) for m in re.finditer(r"\S+", text)]
+    lines: list[list[tuple[int, int]]] = []
+    for word in words:
+        if lines and lines[-1][-1][1] - lines[-1][0][0] + 1 + (word[1] - word[0]) <= width:
+            lines[-1].append(word)
+        else:
+            lines.append([word])
+    out = []
+    for i in range(0, len(lines), max_lines):
+        chunk = [w for line in lines[i : i + max_lines] for w in line]
+        pieces = [text[a:b] for a, b in chunk]
+        block_text = " ".join(pieces)
+        spans, offset = [], 0
+        for (a, b), piece in zip(chunk, pieces, strict=True):
+            for hs, he in highlights or []:
+                lo, hi = max(a, hs), min(b, he)
+                if lo < hi:
+                    spans.append([offset + lo - a, offset + hi - a])
+            offset += len(piece) + 1
+        merged: list[list[int]] = []
+        for span in spans:  # neighbouring highlighted words become one span, the space between included
+            if merged and span[0] <= merged[-1][1] + 1:
+                merged[-1][1] = span[1]
+            else:
+                merged.append(span)
+        out.append({"text": block_text, "lines": wrap(block_text, width), "highlights": merged})
+    return out
+
+
 def rect(x: float, y: float, w: float, h: float) -> dict:
     return {"x": round(x, 4), "y": round(y, 4), "w": round(w, 4), "h": round(h, 4)}
 
@@ -220,7 +286,13 @@ class Timeline:
     warnings: list[str] = field(default_factory=list)
 
 
-def build(timing: dict, images: dict[str, str], preset: dict, sources: dict) -> Timeline:
+def build(
+    timing: dict,
+    images: dict[str, str],
+    preset: dict,
+    sources: dict,
+    highlights: dict[str, list[list[int]]] | None = None,
+) -> Timeline:
     """The timeline from aligned timing, image paths per phrase name and the edit preset."""
     video, audio = preset["video"], preset["audio"]
     frames = Frames(int(video["fps"]))
@@ -269,16 +341,23 @@ def build(timing: dict, images: dict[str, str], preset: dict, sources: dict) -> 
         if following - end < CLOSE_GAP_SECONDS:
             end = following
         end = frames.snap(min(end, following - 2 * frames.one) if i + 1 < len(phrases) else min(end, duration))
-        lines = wrap(phrase["text"], int(style["max_chars_per_line"]))
-        if len(lines) > style["max_lines"]:
-            warnings.append(
-                f"{phrase['name']}: {len(lines)} subtitle lines (the preset allows {style['max_lines']}) — "
-                "split the phrase in the script"
-            )
         cps = len(phrase["text"]) / max(end - start, frames.one)
         if cps > MAX_CHARS_PER_SECOND:
             warnings.append(f"{phrase['name']}: {cps:.0f} characters per second is fast to read")
-        subtitles.append({"name": phrase["name"], "start": start, "end": end, "text": phrase["text"], "lines": lines})
+        # a phrase too long for max_lines becomes consecutive blocks, timed by their share of its characters
+        parts = blocks(
+            phrase["text"],
+            int(style["max_chars_per_line"]),
+            int(style["max_lines"]),
+            (highlights or {}).get(phrase["name"]),
+        )
+        total = sum(len(b["text"]) for b in parts)
+        clock = start
+        for k, part in enumerate(parts):
+            share = len(part["text"]) / total
+            stop = end if k == len(parts) - 1 else frames.snap(clock + (end - start) * share)
+            subtitles.append({"name": phrase["name"], "start": clock, "end": stop, **part})
+            clock = stop
 
     fade_in = frames.snap(video["fade_in_seconds"])
     chapters = []

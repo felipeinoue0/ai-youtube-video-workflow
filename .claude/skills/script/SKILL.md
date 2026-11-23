@@ -101,6 +101,14 @@ Rules:
   `> check:` before recording.
 - Never reuse sentences from the reference transcripts.
 
+### Key words
+
+Mark the one or two words per phrase a viewer should remember with double
+asterisks: `- Comece com **uma habilidade** que você já tem.` They show on
+screen in the kit's highlight colour. Mark the point, not decoration: at most
+one highlight in most phrases, none in many. The marks never reach the
+narration, the image prompts or the file names.
+
 ## 4. Build
 
 ```bash

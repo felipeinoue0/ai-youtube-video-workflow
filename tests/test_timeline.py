@@ -164,33 +164,111 @@ def test_timeline_build_lays_out_clips_transitions_subtitles_and_chapters(tmp_pa
     assert all(on_frame(t) for t in times)
 
 
-def test_subtitles_ass_has_a_box_style_and_top_left_chapters(tmp_path: Path) -> None:
-    video = setup(tmp_path)
-    ok(tmp_path, "timeline", "build", "c", "v")
-    ass = (video / "timeline" / "v1" / "subtitles.ass").read_text()
-    assert "PlayResX: 1920\nPlayResY: 1080" in ass
+def ass_styles(ass: str) -> dict[str, dict[str, str]]:
     fields = ass.split("[V4+ Styles]\nFormat: ")[1].splitlines()[0].split(", ")
     styles = {}
     for line in re.findall(r"^Style: (.*)$", ass, re.M):
         values = dict(zip(fields, line.split(","), strict=True))
         styles[values["Name"]] = values
-    subtitle, chapter = styles["Subtitle"], styles["Chapter"]
-    assert subtitle["BorderStyle"] == "3" and chapter["BorderStyle"] == "3"  # a box behind the text
-    assert subtitle["OutlineColour"] == "&H66000000"  # black at 60% opacity
+    return styles
+
+
+def dialogues(ass: str) -> list[tuple[str, ...]]:
+    return re.findall(r"^Dialogue: (\d),([^,]+),([^,]+),(\w+),,0,0,0,,(.*)$", ass, re.M)
+
+
+def test_subtitles_ass_has_one_box_per_subtitle_and_top_left_chapters(tmp_path: Path) -> None:
+    video = setup(tmp_path)
+    ok(tmp_path, "timeline", "build", "c", "v")
+    ass = (video / "timeline" / "v1" / "subtitles.ass").read_text()
+    assert "PlayResX: 1920\nPlayResY: 1080" in ass
+    assert "[Kdenlive Extradata]\nMaxLayer: 1\nDefaultStyles: Default,Chapter" in ass  # as Kdenlive writes it
+    styles = ass_styles(ass)
+    subtitle, chapter = styles["Default"], styles["Chapter"]
+    assert subtitle["BorderStyle"] == "4" and chapter["BorderStyle"] == "4"  # one box around the whole text
+    assert subtitle["BackColour"] == "&H66000000" and subtitle["OutlineColour"] == "&HFF000000"  # no glyph outline
+    assert subtitle["Outline"] == "12"  # the box's padding
     assert subtitle["Alignment"] == "2" and chapter["Alignment"] == "7"  # bottom centre; top left
     assert subtitle["Fontsize"] == "48" and chapter["MarginL"] == "48"
-    dialogues = re.findall(r"^Dialogue: (\d),([^,]+),([^,]+),(\w+),,0,0,0,,(.*)$", ass, re.M)
-    assert [d[3] for d in dialogues].count("Chapter") == 2 and [d[3] for d in dialogues].count("Subtitle") == 5
-    assert ("1", "0:00:01.00", "0:00:06.00", "Chapter", "{\\fad(400,400)}The Silver Age") in dialogues
+    found = dialogues(ass)
+    assert [d[3] for d in found].count("Chapter") == 2 and [d[3] for d in found].count("Default") == 5
+    assert ("1", "0:00:01.00", "0:00:06.00", "Chapter", "{\\an7\\fad(180,220)}The Silver Age") in found
 
 
-def test_long_phrases_wrap_and_warn(tmp_path: Path) -> None:
-    long = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen"
+CHANNEL_PRESET = """
+[subtitles]
+font = "Noto Sans"
+size = 100
+bold = true
+color = "#ffffff"
+box_color = "#20150d"
+box_opacity = 0.56
+box_padding = 15
+box_style = "lines"
+max_chars_per_line = 26
+highlight_color = "#ffd166"
+fade_ms = 65
+
+[chapters]
+size = 54
+color = "#ffefdc"
+box_opacity = 0.75
+underline = true
+slide = true
+margin = 90
+"""
+
+
+def test_long_phrases_become_short_blocks_with_highlights_and_the_channel_style(tmp_path: Path) -> None:
+    long = "one two three four **five six** seven eight nine ten eleven twelve thirteen fourteen fifteen **sixteen**"
     script = f"# T\n## A\n- {long}.\n- Short one here.\n## B\n- Another phrase.\n"
-    setup(tmp_path, script, {"01_a.wav": 3.0, "02_b.wav": 2.0})
+    video = setup(tmp_path, script, {"01_a.wav": 4.0, "02_b.wav": 2.0})
+    preset = kit_dir(tmp_path) / "edit-preset.toml"
+    preset.write_text(
+        preset.read_text().split("[subtitles]")[0]
+        + CHANNEL_PRESET
+        + "\n[video]\n"
+        + preset.read_text().split("[video]")[1]
+    )
+    assert "edit-preset.toml: ok" in ok(tmp_path, "kit", "check", "c", "--file", "edit-preset.toml").stdout
     out = ok(tmp_path, "timeline", "build", "c", "v").stdout
-    assert "warning: 001_one-two-three-four-five: 3 subtitle lines (the preset allows 2)" in out
-    assert "characters per second is fast to read" in out
+    assert "subtitle lines" not in out  # no more "split the phrase" warnings: it is split into blocks
+    data = json.loads((video / "timeline" / "v1" / "timeline.json").read_text())
+    first = [s for s in data["subtitles"] if s["name"].startswith("001_")]
+    assert len(first) >= 2 and all(len(s["lines"]) <= 2 and max(map(len, s["lines"])) <= 26 for s in first)
+    assert " ".join(s["text"] for s in first) == long.replace("**", "") + "."
+    for a, b in zip(first, first[1:], strict=False):
+        assert a["end"] == b["start"]  # consecutive blocks inside the phrase's time
+    highlighted = [s["text"][x:y] for s in first for x, y in s["highlights"]]
+    assert highlighted == ["five six", "sixteen"]
+
+    ass = (video / "timeline" / "v1" / "subtitles.ass").read_text()
+    styles = ass_styles(ass)
+    assert styles["Default"]["Fontsize"] == "100" and styles["Default"]["Bold"] == "-1"
+    assert styles["Default"]["BackColour"] == "&H700D1520" and styles["Default"]["BorderStyle"] == "3"
+    assert styles["Chapter"]["PrimaryColour"] == "&H00DCEFFF" and styles["Chapter"]["Underline"] == "-1"
+    texts = [d[4] for d in dialogues(ass) if d[3] == "Default"]
+    assert texts[0].startswith("{\\fad(65,65)}") and "\\N" in texts[0]
+    # the colour opens before the highlight and closes after it, across a line break if there is one
+    assert re.search(r"\{\\c&H66D1FF&\}five(\\N| )six\{\\c&HFFFFFF&\}", "".join(texts))
+    assert "{\\c&H66D1FF&}sixteen{\\c&HFFFFFF&}" in "".join(texts)
+    chapter = next(d[4] for d in dialogues(ass) if d[3] == "Chapter")
+    assert chapter.startswith("{\\an7\\fad(180,220)\\move(108,90,90,90,0,300)}")
+
+
+def test_highlight_marks_stay_out_of_names_words_and_narration(tmp_path: Path) -> None:
+    script = "# T\n## A\n- Ganhar uma **renda extra** hoje.\n## B\n- Outra **frase** aqui.\n"
+    video = setup(tmp_path, script, {"01_a.wav": 2.0, "02_b.wav": 2.0})
+    data = json.loads((video / "script" / "v1" / "script.json").read_text())
+    phrase = data["phrases"][0]
+    assert phrase["text"] == "Ganhar uma renda extra hoje." and phrase["highlights"] == [[11, 22]]
+    assert phrase["name"] == "001_ganhar-uma-renda-extra-hoje" and phrase["words"] == 5
+    assert "**" not in (video / "voiceover" / "v1" / "narration.txt").read_text()
+    assert "| Ganhar uma **renda extra** hoje. |" in (video / "script" / "v1" / "transcript.md").read_text()
+    version = video / "script" / "v1"
+    (version / "script.md").write_text("# T\n## A\n- Aberto **sem fechar.\n")
+    bad = ytflow(tmp_path, "script", "build", "c", "v")
+    assert bad.returncode == 1 and "highlight is never closed" in bad.stdout
 
 
 def test_wrap_balances_two_lines() -> None:
