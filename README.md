@@ -4,6 +4,8 @@
 
 <p>AI agent skills that guide a creator from channel branding to a published YouTube video, one reviewable step at a time.</p>
 
+<p><b>English</b> | <a href="README.pt-BR.md">Português</a></p>
+
 <p>
   <a href="https://github.com/fiwon123/ai-youtube-video-workflow/actions/workflows/ci.yml"><img src="https://github.com/fiwon123/ai-youtube-video-workflow/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://github.com/fiwon123/ai-youtube-video-workflow/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-proprietary-blue" alt="License"></a>
