@@ -87,23 +87,34 @@ looks the same in Kdenlive.
 ## 4. Export to Kdenlive
 
 ```bash
-ytflow export kdenlive <channel> <video>   # writes timeline/v<N>/<video>.kdenlive
+ytflow export kdenlive <channel> <video> --host-root <workspace on the creator's machine>
 ```
+
+It writes `timeline/v<N>/<video>.kdenlive` in Kdenlive's own 1.1 layout
+(modeled on a project saved by Kdenlive 26.08) and, next to it,
+`<video>.kdenlive.ass`, the subtitle file Kdenlive expects.
+
+`--host-root` (or `YTFLOW_HOST_ROOT`) is where the workspace root is on the
+machine that runs Kdenlive — Kdenlive saves absolute paths, and its subtitle
+list needs one. When the agent runs in a container, the workspace is mounted
+from that folder; ask the creator if you cannot tell. Without it, paths are
+relative to the project file.
 
 Tell the creator to open that file in Kdenlive. What they will find:
 
-- **V1 and V2**: the images, alternating, so each transition is a composition
-  between the two tracks over the overlap.
+- one sequence, named after the video, with **Narração** (A1) and two image
+  tracks, **Imagens 1 · dissoluções** and **Imagens 2 · dissoluções**: the
+  images alternate between them, and each dissolve is the upper image fading
+  its transparency in and out over the lower one (clip effects, no transition
+  compositions);
 - each image has a **Transform** effect with two keyframes: the pan or zoom;
 - the first image fades from black, the last fades to black;
-- **A1**: the narration;
-- the **subtitle track**: subtitles and chapter titles from `subtitles.ass`.
+- the **subtitle track**: subtitles and chapter titles;
+- a **guide** at the start of each chapter.
 
-Next to the project, `lumas/` holds the wipe transitions' patterns and
-`subtitles.ass` the text; the project needs both.
-
-Paths are relative to the project file: keep the video folder together, and
-move it as a whole.
+Kdenlive transitions are dissolves only: a preset with wipes or slides is
+exported with dissolves, and the export says so. Keep the preset's `types` to
+`["dissolve"]` so the preview shows the same.
 
 The project file is generated: changes the creator makes in Kdenlive are theirs
 to keep, but a new `ytflow export kdenlive` writes a new file in the latest
