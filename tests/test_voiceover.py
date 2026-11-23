@@ -204,3 +204,15 @@ def test_audio_check_needs_the_voiceover_export(tmp_path: Path) -> None:
     ok(tmp_path, "version", "new", "channels/c/videos/v/voiceover")
     result = ytflow(tmp_path, "audio", "check", "c", "v")
     assert result.returncode == 1 and "ytflow voiceover text c v" in result.stderr
+
+
+def test_audio_check_takes_a_single_file_of_any_name_as_the_narration(tmp_path: Path) -> None:
+    video = setup(tmp_path)
+    ok(tmp_path, "voiceover", "text", "c", "v")
+    estimate = json.loads((video / "voiceover" / "v1" / "voiceover.json").read_text())["estimated_duration"]
+    tone(video / "audio" / "voz.mp3", estimate)
+    out = ok(tmp_path, "audio", "check", "c", "v").stdout
+    assert "voz.mp3" in out and "audio: one file" in out and "warning" not in out
+    assert "audio      voz.mp3" in ok(tmp_path, "status", "c", "v").stdout
+    tone(video / "audio" / "outra.mp3", 1)  # two unnamed files: neither is the narration
+    assert ytflow(tmp_path, "audio", "check", "c", "v").returncode == 1

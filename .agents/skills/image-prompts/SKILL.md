@@ -124,9 +124,13 @@ Give the creator these steps:
    variation, and download it into that folder before moving to the next
    prompt.
 
-Download order matters: the import pairs the oldest download with the first
-missing name. If the creator wants to skip a prompt, they finish the batch
-first and do the skipped one in its own batch later.
+Google Flow usually names a download after the start of its prompt plus a
+hash (`002_parece-exagero-mas-hoje-isso_314562ba.jpg`): those are paired **by
+name**, whatever the order. Some downloads get Flow's own caption instead
+(`Runner_on_empty_street_dawn_d2720777.jpg`); those pair by **download order**
+— the oldest with the first image still missing — so keep the order, and do a
+skipped prompt in its own batch later. The creator may also save the downloads
+straight into the video's `images/` folder.
 
 ## 6. Import and check
 
@@ -134,9 +138,22 @@ first and do the skipped one in its own batch later.
 ytflow images import <channel> <video> --from ~/Downloads/<video>-batch1
 ```
 
-That is a dry run: it prints `download -> name` pairs. If you can view images,
-open a few pairs and compare each one with its prompt; otherwise ask the
-creator to spot-check them. Only when the pairs are right:
+That is a dry run: it prints `download -> name  (by name | download order)`
+pairs. `--from` may be the video's own `images/` folder: the files are then
+renamed in place instead of copied.
+
+When the downloads all share one file time (copied out of a zip, or moved
+together), the order is lost and the import does not guess: it lists them as
+`unmatched` with the names still missing. Look at each unmatched image, find
+its scene in the prompts, and pair it:
+
+```bash
+ytflow images import <channel> <video> --from <folder> \
+  --pair Runner_on_empty_street_dawn_d2720777.jpg=061_a-ia-acelera-quem-faz
+```
+
+If you can view images, open a few pairs and compare each one with its prompt;
+otherwise ask the creator to spot-check them. Only when the pairs are right:
 
 ```bash
 ytflow images import <channel> <video> --from ~/Downloads/<video>-batch1 --apply

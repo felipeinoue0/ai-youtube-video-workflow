@@ -143,8 +143,9 @@ Tell the creator, in this order:
    - per chapter: `audio/<NN>_<chapter>.mp3`, named exactly like the chapter's
      text file (`01_rome-burns.mp3`).
 
-   ElevenLabs names its downloads after the voice and the date; rename them.
-   Use one layout, not both.
+   ElevenLabs names its downloads after the voice and the date. A single file
+   is the narration whatever its name (`voz.mp3` works); chapter files must be
+   renamed to their chapter's name. Use one layout, not both.
 
 ## 4. Check the audio
 
