@@ -1,32 +1,44 @@
+<p align="center">🌐 <a href="README.md">English</a> · <b>Português</b></p>
+
 <div align="center">
 
-<h1>ai-youtube-video-workflow</h1>
+<img src="docs/assets/logo.svg" width="88" height="88" alt="">
 
-<p>Skills de agente de IA que guiam um criador da identidade do canal até o vídeo publicado no YouTube, uma etapa revisável por vez.</p>
+<h1>AI YouTube Video Workflow</h1>
 
-<p><a href="README.md">English</a> | <b>Português</b></p>
+<p><b>Transforme uma ideia em um vídeo pronto para o YouTube — guiado pelo seu agente de IA, passo a passo.</b></p>
+
+<p>Roteiro, prompts das imagens, narração, uma edição do Kdenlive pronta para renderizar, e o título, a descrição e as tags. Você revisa cada etapa; nada sai do seu computador.</p>
 
 <p>
   <a href="https://github.com/fiwon123/ai-youtube-video-workflow/actions/workflows/ci.yml"><img src="https://github.com/fiwon123/ai-youtube-video-workflow/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <a href="https://github.com/fiwon123/ai-youtube-video-workflow/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-proprietary-blue" alt="Licença"></a>
-  <img src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20WSL2%20%7C%20Windows-4c8bf5" alt="Plataformas">
+  <img src="https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12">
+  <img src="https://img.shields.io/badge/uv-managed-DE5FE9?logo=uv&logoColor=white" alt="uv">
+  <img src="https://img.shields.io/badge/Kdenlive-export-527EB2?logo=kdenlive&logoColor=white" alt="Kdenlive">
+  <img src="https://img.shields.io/badge/agents-Claude%20Code%20%7C%20opencode%20%7C%20Codex-D97757" alt="Agents">
+  <img src="https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20WSL2%20%7C%20Windows-4c8bf5" alt="Platforms">
+  <a href="https://github.com/fiwon123/ai-youtube-video-workflow/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-proprietary-555" alt="License"></a>
 </p>
+
+<p><a href="#-começo-rápido">🚀 Começo rápido</a> · <a href="#-como-usar">🎬 Como usar</a> · <a href="#-onde-ficam-seus-arquivos">📁 Seus arquivos</a> · <a href="#-perguntas-frequentes">💬 Dúvidas</a> · <a href="docs/wiki/Walkthrough.md">📖 Passo a passo</a></p>
+
+<img src="docs/assets/workflow.pt-BR.svg" width="100%" alt="As sete etapas: Identidade, Estilo, Roteiro, Imagens, Narração, Edição, Publicação">
 
 </div>
 
 ---
 
-## Sumário
+## 📑 Sumário
 
-- [Sobre](#sobre)
-- [Começo rápido](#começo-rápido)
-- [Como usar](#como-usar)
-- [Onde ficam seus arquivos](#onde-ficam-seus-arquivos)
-- [Perguntas frequentes](#perguntas-frequentes)
-- [Para desenvolvedores](#para-desenvolvedores)
-- [Licença](#licença)
+- [✨ Sobre](#-sobre)
+- [🚀 Começo rápido](#-começo-rápido)
+- [🎬 Como usar](#-como-usar)
+- [📁 Onde ficam seus arquivos](#-onde-ficam-seus-arquivos)
+- [💬 Perguntas frequentes](#-perguntas-frequentes)
+- [💻 Para desenvolvedores](#-para-desenvolvedores)
+- [📜 Licença](#-licença)
 
-## Sobre
+## ✨ Sobre
 
 Fazer um vídeo longo para o YouTube com ferramentas de IA significa usar
 várias delas à mão: um programa de design para o logo, vídeos de referência
@@ -40,7 +52,7 @@ o texto da narração, o projeto do Kdenlive, o título e a descrição), diz
 exatamente o que fazer na ferramenta externa e confere o que você traz de
 volta. Você revisa cada resultado antes de seguir.
 
-**Resumindo:** você traz as ideias e aperta os botões no Canva, Google Flow,
+💡 **Resumindo:** você traz as ideias e aperta os botões no Canva, Google Flow,
 ElevenLabs e Kdenlive; o agente cuida da escrita, dos nomes dos arquivos, do
 tempo de cada frase e da montagem da edição.
 
@@ -48,9 +60,9 @@ tempo de cada frase e da montagem da edição.
 > API**. Nada do que você cria sai do seu computador: tudo fica na pasta
 > `channels/`.
 
-## Começo rápido
+## 🚀 Começo rápido
 
-**1. Tenha o necessário**
+**1️⃣ Tenha o necessário**
 
 | Você precisa de | Para quê |
 |---|---|
@@ -59,7 +71,7 @@ tempo de cada frase e da montagem da edição.
 | Contas no Canva, Google Flow e ElevenLabs | logo/banner, imagens, voz |
 | [Kdenlive](https://kdenlive.org/) (gratuito) | a edição final e a renderização |
 
-**2. Baixe o projeto e abra o agente**
+**2️⃣ Baixe o projeto e abra o agente**
 
 ```bash
 git clone https://github.com/fiwon123/ai-youtube-video-workflow.git
@@ -77,7 +89,7 @@ claude               # abra o seu agente nesta pasta
 No Windows sem WSL2, use `python scripts/dev-up.py dev-up` e
 `python scripts/dev-up.py claude-auto` no lugar de `make`.
 
-**3. Diga o que você quer**
+**3️⃣ Diga o que você quer**
 
 Escreva para o agente com palavras simples, em português mesmo. Por exemplo:
 
@@ -90,30 +102,30 @@ Escreva para o agente com palavras simples, em português mesmo. Por exemplo:
 A skill `guide` verifica onde você está (`ytflow status`) e abre a etapa
 certa. Você não precisa decorar nenhum comando; o agente roda tudo por você.
 
-## Como usar
+## 🎬 Como usar
 
 Cada etapa abaixo é uma conversa com o agente. Quando gostar do resultado,
 diga isso e ele passa para a próxima. Não gostou? Peça mudanças: ele cria uma
 **nova versão** (`v2`, `v3`, …) e guarda as anteriores.
 
-### Uma vez por canal
+### 🏷️ Uma vez por canal
 
 | Etapa | O agente faz | Você faz |
 |---|---|---|
-| **1. Identidade** | faz algumas perguntas e escreve ideias de nome, descrição e palavras-chave do canal, os tamanhos e o estilo do logo e do banner no Canva, e o modelo de descrição de todos os vídeos | cria o logo e o banner no Canva, salva na pasta de identidade (o agente confere os tamanhos do YouTube) e envia para o YouTube |
-| **2. Estilo** | lê 2 a 5 transcrições de vídeos que você gosta e escreve o guia de estilo (gancho, ritmo, estrutura, tom) e a "âncora visual" que entra em todo prompt de imagem | cola as transcrições no chat ou num arquivo |
+| 🎨 **1. Identidade** | faz algumas perguntas e escreve ideias de nome, descrição e palavras-chave do canal, os tamanhos e o estilo do logo e do banner no Canva, e o modelo de descrição de todos os vídeos | cria o logo e o banner no Canva, salva na pasta de identidade (o agente confere os tamanhos do YouTube) e envia para o YouTube |
+| 🧭 **2. Estilo** | lê 2 a 5 transcrições de vídeos que você gosta e escreve o guia de estilo (gancho, ritmo, estrutura, tom) e a "âncora visual" que entra em todo prompt de imagem | cola as transcrições no chat ou num arquivo |
 
-### Para cada vídeo
+### 🔁 Para cada vídeo
 
 | Etapa | O agente faz | Você faz |
 |---|---|---|
-| **3. Roteiro** | primeiro um esboço, depois o roteiro: uma frase por linha, separadas em capítulos | lê e pede mudanças até gostar |
-| **4. Imagens** | um prompt do Google Flow por frase, com nomes como `001_o-rio-ao-amanhecer`, `002_…` | gera cada imagem no Google Flow e baixa; o agente renomeia os downloads (`ytflow images import`) e confere se falta alguma |
-| **5. Narração** | o texto para colar no ElevenLabs (e a voz escolhida, guardada para os próximos vídeos) | gera o áudio no ElevenLabs e salva na pasta `audio/` do vídeo; depois o agente marca o tempo de cada frase na voz real (`ytflow align`) |
-| **6. Edição** | um projeto do Kdenlive: legendas com caixa, título do capítulo no canto superior esquerdo, fade de entrada e saída, transições e um zoom ou movimento lento em cada imagem, além de um vídeo de prévia | abre o projeto no Kdenlive, assiste, ajusta se quiser e renderiza |
-| **7. Publicação** | opções de título, a descrição (com os horários dos capítulos), as tags e o arquivo de legendas | escolhe um título e envia o vídeo para o YouTube |
+| 📝 **3. Roteiro** | primeiro um esboço, depois o roteiro: uma frase por linha, separadas em capítulos | lê e pede mudanças até gostar |
+| 🖼️ **4. Imagens** | um prompt do Google Flow por frase, com nomes como `001_o-rio-ao-amanhecer`, `002_…` | gera cada imagem no Google Flow e baixa; o agente renomeia os downloads (`ytflow images import`) e confere se falta alguma |
+| 🎙️ **5. Narração** | o texto para colar no ElevenLabs (e a voz escolhida, guardada para os próximos vídeos) | gera o áudio no ElevenLabs e salva na pasta `audio/` do vídeo; depois o agente marca o tempo de cada frase na voz real (`ytflow align`) |
+| 🎬 **6. Edição** | um projeto do Kdenlive: legendas com caixa, título do capítulo no canto superior esquerdo, fade de entrada e saída, transições e um zoom ou movimento lento em cada imagem, além de um vídeo de prévia | abre o projeto no Kdenlive, assiste, ajusta se quiser e renderiza |
+| 📤 **7. Publicação** | opções de título, a descrição (com os horários dos capítulos), as tags e o arquivo de legendas | escolhe um título e envia o vídeo para o YouTube |
 
-**Do segundo vídeo em diante é mais rápido.** O primeiro vídeo salva sua voz,
+⚡ **Do segundo vídeo em diante é mais rápido.** O primeiro vídeo salva sua voz,
 as configurações de edição e o estilo no **kit** do canal, então cada vídeo
 novo usa tudo isso automaticamente e fica com a mesma cara do primeiro.
 
@@ -123,7 +135,7 @@ o **[passo a passo](docs/wiki/Walkthrough.md)** (em inglês).
 Opcional: para legendas com o tempo mais preciso, rode `uv sync --extra align`
 uma vez (instala o faster-whisper). Sem ele, o tempo é estimado por capítulo.
 
-## Onde ficam seus arquivos
+## 📁 Onde ficam seus arquivos
 
 Tudo fica em `channels/` (nunca vai para o git):
 
@@ -144,10 +156,10 @@ channels/<canal>/
     └── package/v1/           tudo o que você cola nas ferramentas, numa pasta só
 ```
 
-Dica: peça ao agente *"monte o pacote"* (`ytflow package`) para ter numa pasta
+💡 Dica: peça ao agente *"monte o pacote"* (`ytflow package`) para ter numa pasta
 só o roteiro com tempos, o texto do ElevenLabs e os prompts do Flow.
 
-## Perguntas frequentes
+## 💬 Perguntas frequentes
 
 **Não gostei de um resultado. E agora?**
 Diga ao agente o que mudar. Ele cria uma nova versão (`v2`) e guarda a
@@ -173,16 +185,16 @@ os comandos.
 Tudo bem: o agente associa cada uma ao seu prompt pelo nome ou pela ordem de
 download, e só pergunta sobre as que não conseguir associar.
 
-## Para desenvolvedores
+## 💻 Para desenvolvedores
 
 A arquitetura, os comandos de desenvolvimento, a solução de problemas e o que
 ainda não foi comprovado estão no **[README em inglês](README.md)**, a partir
-de [Architecture](README.md#architecture). As regras que todo agente segue
+de [Architecture](README.md#-architecture). As regras que todo agente segue
 estão em [AGENTS.md](AGENTS.md).
 
 - **Código**: <https://github.com/fiwon123/ai-youtube-video-workflow>
 - **Issues**: <https://github.com/fiwon123/ai-youtube-video-workflow/issues>
 
-## Licença
+## 📜 Licença
 
 Proprietária, todos os direitos reservados. Veja [LICENSE](LICENSE).
