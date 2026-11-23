@@ -308,15 +308,12 @@ def test_export_kdenlive_writes_the_timeline_as_an_mlt_project(tmp_path: Path) -
     assert (profile.get("display_aspect_num"), profile.get("display_aspect_den")) == ("16", "9")
     main_bin = root.find("playlist[@id='main_bin']")
     assert prop(main_bin, "kdenlive:docproperties.version") == "1.04"
-    # Kdenlive names the sequence it upgrades the timeline into after the document uuid:
-    # a missing one becomes the null uuid, an "invalid sequence clip in bin"
-    document_uuid = prop(main_bin, "kdenlive:docproperties.uuid")
-    assert re.fullmatch(r"\{[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}\}", document_uuid)
+    # a pure 1.04 document: no 1.1 sequence markers, which make Kdenlive read the main tractor's
+    # tracks as sequence clips ("invalid sequence clip in bin ... {00000000-...}=")
+    assert prop(main_bin, "kdenlive:docproperties.uuid") is None
+    assert not [p for p in root.iter("property") if p.get("name") in ("kdenlive:projectTractor", "kdenlive:uuid")]
+    assert not [p for p in root.iter("property") if (p.get("name") or "").startswith("kdenlive:sequenceproperties.")]
     assert prop(main_bin, "kdenlive:docproperties.documentid").isdigit()
-    again = ET.parse(Path(ok(tmp_path, "export", "kdenlive", "c", "v").stdout.strip())).getroot()
-    assert (
-        prop(again.find("playlist[@id='main_bin']"), "kdenlive:docproperties.uuid") != document_uuid
-    )  # one per export
     producers = {p.get("id"): p for p in root.iter("producer")}
     for producer in producers.values():  # every media path resolves from the project's folder
         resource = prop(producer, "resource")
