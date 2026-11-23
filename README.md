@@ -201,11 +201,13 @@ make reset       # stops the sandbox and deletes its volumes, agent logins inclu
 
 ## What is not proven
 
-- **Kdenlive versions other than 26.08**: the exported project was opened
-  and checked in Kdenlive 26.08.2
+- **The Kdenlive project's native layout**: an earlier export was opened and
+  checked in Kdenlive 26.08.2
   ([#27](https://github.com/fiwon123/ai-youtube-video-workflow/issues/27)).
-  It is written in an older project format that Kdenlive upgrades on open, so
-  other recent versions should open it too, but only 26.08 was tried.
+  The export now writes Kdenlive's own 1.1 layout, modeled on a project saved
+  by Kdenlive 26.08.2 (dissolves as clip fades, the subtitle list, chapter
+  guides); that layout is tested by reading it back, and still has to be
+  opened in Kdenlive to be called verified. Other Kdenlive versions are untried.
 - **The external tools**: the [walkthrough](docs/wiki/Walkthrough.md) ran with
   stand-ins for Canva, Google Flow and ElevenLabs (generated images, a
   synthetic voice). Their real download names and settings screens may differ

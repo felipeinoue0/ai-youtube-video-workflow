@@ -19,7 +19,7 @@ from ytflow.images import check as check_images
 from ytflow.images import suggestion as image_suggestion
 from ytflow.kdenlive import export as export_kdenlive
 from ytflow.kit import KitError, check_kit, front_matter
-from ytflow.media import MediaError, duration
+from ytflow.media import MediaError, duration, image_size
 from ytflow.package import TRANSCRIPT
 from ytflow.package import transcript as script_transcript
 from ytflow.package import write as write_package
@@ -69,6 +69,7 @@ from ytflow.workspace import (
 )
 
 ROOT_ENV = "YTFLOW_ROOT"
+HOST_ROOT_ENV = "YTFLOW_HOST_ROOT"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -218,6 +219,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("channel")
     p.add_argument("video")
     p.add_argument("--version", dest="step_version", help="timeline version (default: latest)")
+    p.add_argument(
+        "--host-root",
+        help=f"where the workspace root is on the machine that runs Kdenlive: write absolute paths there "
+        f"(default: ${HOST_ROOT_ENV}, else relative paths)",
+    )
     p.set_defaults(func=cmd_export_kdenlive)
 
     publish = sub.add_parser("publish", help="title, description, tags").add_subparsers(dest="action", required=True)
@@ -721,8 +727,25 @@ def cmd_export_kdenlive(args: argparse.Namespace) -> int:
     subtitles = version / "subtitles.ass"
     if not subtitles.is_file():
         raise WorkspaceError(f"no subtitles.ass in {version} — run: ytflow timeline build {args.channel} {args.video}")
-    project = export_kdenlive(data, version / f"{args.video}.kdenlive", ws.video(args.channel, args.video), subtitles)
+    video_dir = ws.video(args.channel, args.video)
+    host = args.host_root or os.environ.get(HOST_ROOT_ENV)
+    sizes = {clip["image"]: image_size(video_dir / clip["image"]) for clip in data["clips"]}
+    script = json.loads(
+        (version_dir(video_dir / "script", data["sources"]["script_version"]) / SCRIPT_COMPILED).read_text()
+    )
+    project, notes = export_kdenlive(
+        data,
+        version / f"{args.video}.kdenlive",
+        video_dir,
+        subtitles,
+        script["title"],
+        (ws.root, host) if host else None,
+        sizes,
+    )
     print(project)
+    print(f"subtitles: {project.name}.ass next to it; paths {'absolute under ' + host if host else 'relative'}")
+    for note in notes:
+        print(f"note: {note}")
     return 0
 
 
