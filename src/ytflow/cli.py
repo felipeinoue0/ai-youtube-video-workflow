@@ -20,6 +20,9 @@ from ytflow.images import suggestion as image_suggestion
 from ytflow.kdenlive import export as export_kdenlive
 from ytflow.kit import KitError, check_kit, front_matter
 from ytflow.media import MediaError, duration
+from ytflow.package import TRANSCRIPT
+from ytflow.package import transcript as script_transcript
+from ytflow.package import write as write_package
 from ytflow.preview import FILE as PREVIEW_FILE
 from ytflow.preview import render as render_preview
 from ytflow.prompts import COMPILED as PROMPTS_COMPILED
@@ -61,6 +64,7 @@ from ytflow.workspace import (
     latest_version,
     new_version,
     version_dir,
+    versions,
     video_status,
 )
 
@@ -224,6 +228,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", dest="step_version", help="publish version (default: latest)")
     p.set_defaults(func=cmd_publish_build)
 
+    p = sub.add_parser(
+        "package", help="gather the timed script, ElevenLabs text, Flow prompts and scenes in one folder"
+    )
+    p.add_argument("channel")
+    p.add_argument("video")
+    p.add_argument("--script", dest="script_version", help="script version (default: latest)")
+    p.set_defaults(func=cmd_package)
+
     p = sub.add_parser("status", help="show where a channel or video is and what to do next")
     p.add_argument("channel")
     p.add_argument("video", nargs="?")
@@ -374,6 +386,7 @@ def cmd_script_build(args: argparse.Namespace) -> int:
         print(f"script {version.name}: {len(problems)} problem(s); {SCRIPT_COMPILED} not written")
         return 1
     (version / SCRIPT_COMPILED).write_text(script.to_json())
+    (version / TRANSCRIPT).write_text(script_transcript(json.loads(script.to_json())))
     print(f"{script.title}")
     for chapter in script.chapters:
         count = sum(1 for p in script.phrases if p.chapter == chapter.index)
@@ -386,7 +399,7 @@ def cmd_script_build(args: argparse.Namespace) -> int:
     )
     for warning in youtube_chapter_warnings(script):
         print(f"warning: {warning}")
-    print(f"script {version.name}: ok — wrote {version / SCRIPT_COMPILED}")
+    print(f"script {version.name}: ok — wrote {version / SCRIPT_COMPILED} and {TRANSCRIPT} (each line's time)")
     return 0
 
 
@@ -748,6 +761,47 @@ def cmd_publish_build(args: argparse.Namespace) -> int:
     print(
         f"publish {version.name}: ok — {len(result.title)}-character title, {len(result.description)}-character "
         f"description, {len(result.tags)} tags; files in {version}"
+    )
+    return 0
+
+
+def made_from(step_dir: Path, compiled: str, script_version: str) -> tuple[Path | None, dict | None]:
+    """The latest version of a step whose compiled file was made from this script version."""
+    for number in sorted(versions(step_dir), reverse=True):
+        path = step_dir / f"v{number}" / compiled
+        if path.is_file():
+            data = json.loads(path.read_text())
+            if data.get("script_version") == script_version:
+                return path.parent, data
+    return None, None
+
+
+def cmd_package(args: argparse.Namespace) -> int:
+    ws = workspace(args)
+    video_dir = ws.video(args.channel, args.video)
+    script_dir, script = built_script(ws, args.channel, args.video, args.script_version)
+    prompts_dir, prompts = made_from(video_dir / "prompts", PROMPTS_COMPILED, script_dir.name)
+    voiceover_dir, _ = made_from(video_dir / "voiceover", VOICEOVER_COMPILED, script_dir.name)
+    timing_dir, timing = made_from(video_dir / "timing", TIMING_COMPILED, script_dir.name)
+    missing = []
+    if prompts_dir is None:
+        missing.append(f"Flow prompts from script {script_dir.name} — run: ytflow prompts init / prompts build")
+    if voiceover_dir is None:
+        missing.append(f"ElevenLabs text from script {script_dir.name} — run: ytflow voiceover text")
+    if missing:
+        raise WorkspaceError("the package needs " + "; ".join(missing))
+    target = new_version(video_dir / "package")
+    sources = {"script": script_dir, "prompts": prompts_dir, "voiceover": voiceover_dir, "timing": timing_dir}
+    files = write_package(target, script, prompts, timing, sources)
+    print(target)
+    for path in files:
+        if path.parent == target:
+            print(f"  {path.name}")
+    chapters = sum(1 for p in files if p.parent.name == "elevenlabs")
+    times = f"aligned ({timing_dir.name})" if timing_dir else "estimated — run ytflow align for the real ones"
+    print(
+        f"package {target.name}: script {script_dir.name}, {len(prompts['prompts'])} images, "
+        f"{chapters} ElevenLabs chapter files; times {times}"
     )
     return 0
 

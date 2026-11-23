@@ -104,6 +104,18 @@ new. A new script version or a kit change gives a new voiceover version.
 
 Show the creator the text and the settings from `voiceover.json`.
 
+Then put everything the creator takes to the external tools in one folder:
+
+```bash
+ytflow package <channel> <video>    # prints .../package/v<N>/
+```
+
+`package/v<N>/` holds `script-timed.md` (every line with its time),
+`elevenlabs.txt` and `elevenlabs/<NN>_<chapter>.txt` (only the spoken lines),
+`flow-prompts.txt` (one prompt per image), `scenes.md` (per image: its name
+`<enumerate_id>_<part_of_phrase>`, time, line and scene) and `manifest.json`.
+It needs the prompts and this export made from the same script version.
+
 ## 3. Generate the audio in ElevenLabs
 
 Tell the creator, in this order:
@@ -188,6 +200,7 @@ with the kit's `chapter_break` between them, so check against that, not one
 chapter file alone.
 
 Run `ytflow align` again whenever the audio changes; each run is a new version.
+Then run `ytflow package` again: the new package carries the real times.
 Then `ytflow status <channel> <video>`: next is the edit.
 
 ## Rules
